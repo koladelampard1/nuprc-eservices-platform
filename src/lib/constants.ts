@@ -1,0 +1,25 @@
+export const APP_NAME = "NUPRC Digital E-Services Platform";
+
+export const ROLE_CODES = {
+  SUPER_ADMIN: "SUPER_ADMIN",
+  ADMIN: "ADMIN",
+  DIRECTOR: "DIRECTOR",
+  REVIEW_OFFICER: "REVIEW_OFFICER",
+  EXTERNAL_OPERATOR: "EXTERNAL_OPERATOR",
+  COMPANY_ADMIN: "COMPANY_ADMIN"
+} as const;
+
+export const APPLICATION_STATES = {
+  DRAFT: "DRAFT",
+  SUBMITTED: "SUBMITTED",
+  IN_REVIEW: "IN_REVIEW",
+  CLARIFICATION_REQUIRED: "CLARIFICATION_REQUIRED",
+  APPROVED: "APPROVED",
+  REJECTED: "REJECTED"
+} as const;
+
+export const PROTECTED_ROUTE_PREFIXES = {
+  portal: "/portal",
+  workspace: "/workspace",
+  admin: "/admin"
+};
