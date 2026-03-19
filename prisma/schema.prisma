@@ -1,0 +1,249 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRoleCode {
+  SUPER_ADMIN
+  ADMIN
+  DIRECTOR
+  REVIEW_OFFICER
+  EXTERNAL_OPERATOR
+  COMPANY_ADMIN
+}
+
+enum ApplicationState {
+  DRAFT
+  SUBMITTED
+  IN_REVIEW
+  CLARIFICATION_REQUIRED
+  APPROVED
+  REJECTED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REVERSED
+}
+
+enum ReviewActionType {
+  ASSIGNED
+  COMMENTED
+  RETURNED_FOR_CLARIFICATION
+  RECOMMENDED_APPROVAL
+  RECOMMENDED_REJECTION
+  FINAL_APPROVAL
+  FINAL_REJECTION
+}
+
+enum NotificationType {
+  SYSTEM
+  APPLICATION_UPDATE
+  CLARIFICATION
+  PAYMENT
+  APPROVAL
+}
+
+enum DecisionType {
+  APPROVAL
+  REJECTION
+  CONDITIONAL_APPROVAL
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  code        UserRoleCode @unique
+  name        String
+  description String?
+  users       User[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model User {
+  id                String                @id @default(cuid())
+  email             String                @unique
+  fullName          String
+  passwordHash      String
+  isActive          Boolean               @default(true)
+  roleId            String
+  companyId         String?
+  role              Role                  @relation(fields: [roleId], references: [id])
+  company           Company?              @relation(fields: [companyId], references: [id])
+  submittedApplications   Application[]      @relation("ApplicationSubmitter")
+  assignedApplications    Application[]      @relation("ApplicationAssignee")
+  workflowTransitions   WorkflowTransition[] @relation("TransitionActor")
+  reviewActions      ReviewAction[]
+  clarificationRequests ClarificationRequest[] @relation("ClarificationRequestedBy")
+  notifications      Notification[]
+  auditLogs          AuditLog[]
+  issuedDecisionLetters DecisionLetter[]    @relation("DecisionIssuer")
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+}
+
+model Company {
+  id            String        @id @default(cuid())
+  name          String
+  rcNumber      String        @unique
+  contactEmail  String
+  users         User[]
+  applications  Application[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model ServiceType {
+  id                    String                       @id @default(cuid())
+  code                  String                       @unique
+  name                  String
+  description           String
+  baseFeeNgn            Decimal                      @db.Decimal(12, 2)
+  isActive              Boolean                      @default(true)
+  documentRequirements  ServiceDocumentRequirement[]
+  applications          Application[]
+  createdAt             DateTime                     @default(now())
+  updatedAt             DateTime                     @updatedAt
+}
+
+model ServiceDocumentRequirement {
+  id            String      @id @default(cuid())
+  serviceTypeId String
+  name          String
+  description   String?
+  isRequired    Boolean     @default(true)
+  sortOrder     Int         @default(0)
+  serviceType   ServiceType @relation(fields: [serviceTypeId], references: [id])
+}
+
+model Application {
+  id                    String                 @id @default(cuid())
+  referenceNo           String                 @unique
+  companyId             String
+  serviceTypeId         String
+  submittedById         String
+  assignedToId          String?
+  state                 ApplicationState       @default(DRAFT)
+  currentStep           String?
+  submittedAt           DateTime?
+  company               Company                @relation(fields: [companyId], references: [id])
+  serviceType           ServiceType            @relation(fields: [serviceTypeId], references: [id])
+  submittedBy           User                   @relation("ApplicationSubmitter", fields: [submittedById], references: [id])
+  assignedTo            User?                  @relation("ApplicationAssignee", fields: [assignedToId], references: [id])
+  formEntries           ApplicationFormEntry[]
+  documents             ApplicationDocument[]
+  paymentReferences     PaymentReference[]
+  workflowTransitions   WorkflowTransition[]
+  reviewActions         ReviewAction[]
+  clarificationRequests ClarificationRequest[]
+  decisionLetters       DecisionLetter[]
+  notifications         Notification[]
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+}
+
+model ApplicationFormEntry {
+  id            String      @id @default(cuid())
+  applicationId String
+  fieldKey      String
+  fieldLabel    String
+  value         String
+  application   Application @relation(fields: [applicationId], references: [id])
+}
+
+model ApplicationDocument {
+  id            String      @id @default(cuid())
+  applicationId String
+  fileName      String
+  storagePath   String
+  mimeType      String
+  uploadedAt    DateTime    @default(now())
+  application   Application @relation(fields: [applicationId], references: [id])
+}
+
+model PaymentReference {
+  id            String        @id @default(cuid())
+  applicationId String
+  referenceNo   String        @unique
+  amountNgn     Decimal       @db.Decimal(12, 2)
+  status        PaymentStatus @default(PENDING)
+  paidAt        DateTime?
+  application   Application   @relation(fields: [applicationId], references: [id])
+}
+
+model WorkflowTransition {
+  id             String           @id @default(cuid())
+  applicationId  String
+  fromState      ApplicationState
+  toState        ApplicationState
+  actorId        String
+  comment        String?
+  transitionedAt DateTime         @default(now())
+  application    Application      @relation(fields: [applicationId], references: [id])
+  actor          User             @relation("TransitionActor", fields: [actorId], references: [id])
+}
+
+model ReviewAction {
+  id            String           @id @default(cuid())
+  applicationId String
+  reviewerId    String
+  actionType    ReviewActionType
+  note          String?
+  createdAt     DateTime         @default(now())
+  application   Application      @relation(fields: [applicationId], references: [id])
+  reviewer      User             @relation(fields: [reviewerId], references: [id])
+}
+
+model ClarificationRequest {
+  id            String      @id @default(cuid())
+  applicationId String
+  requestedById String
+  message       String
+  response      String?
+  respondedAt   DateTime?
+  createdAt     DateTime    @default(now())
+  application   Application @relation(fields: [applicationId], references: [id])
+  requestedBy   User        @relation("ClarificationRequestedBy", fields: [requestedById], references: [id])
+}
+
+model Notification {
+  id            String           @id @default(cuid())
+  userId        String
+  applicationId String?
+  type          NotificationType
+  title         String
+  message       String
+  readAt        DateTime?
+  createdAt     DateTime         @default(now())
+  user          User             @relation(fields: [userId], references: [id])
+  application   Application?     @relation(fields: [applicationId], references: [id])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  actor      User?    @relation(fields: [actorId], references: [id])
+}
+
+model DecisionLetter {
+  id            String       @id @default(cuid())
+  applicationId String
+  issuedById    String
+  decisionType  DecisionType
+  letterRef     String       @unique
+  summary       String
+  issuedAt      DateTime     @default(now())
+  application   Application  @relation(fields: [applicationId], references: [id])
+  issuedBy      User         @relation("DecisionIssuer", fields: [issuedById], references: [id])
+}
