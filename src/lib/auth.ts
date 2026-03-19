@@ -1,6 +1,6 @@
 import { compare } from "bcryptjs";
+import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import { getServerSession, type NextAuthOptions } from "next-auth";
 import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
@@ -10,7 +10,7 @@ const credentialsSchema = z.object({
   password: z.string().min(6)
 });
 
-export const authOptions: NextAuthOptions = {
+export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
   providers: [
@@ -26,11 +26,11 @@ export const authOptions: NextAuthOptions = {
         if (!parsed.success) return null;
 
         const user = await prisma.user.findUnique({
-          where: { email: parsed.data.email },
-          include: { role: true, company: true }
+          where: { email: parsed.data.email.toLowerCase() },
+          include: { role: true }
         });
 
-        if (!user) return null;
+        if (!user || !user.isActive) return null;
 
         const isValidPassword = await compare(parsed.data.password, user.passwordHash);
         if (!isValidPassword) return null;
@@ -51,6 +51,7 @@ export const authOptions: NextAuthOptions = {
         token.roleCode = (user as { roleCode: string }).roleCode;
         token.companyId = (user as { companyId: string | null }).companyId;
       }
+
       return token;
     },
     async session({ session, token }) {
@@ -59,11 +60,8 @@ export const authOptions: NextAuthOptions = {
         session.user.roleCode = token.roleCode as string;
         session.user.companyId = token.companyId as string | null;
       }
+
       return session;
     }
   }
-};
-
-export async function auth() {
-  return getServerSession(authOptions);
-}
+});

@@ -9,7 +9,7 @@ Production-structured MVP scaffold built with **Next.js App Router**, **TypeScri
 - Reusable app components (`AppSidebar`, `AppHeader`, `MetricCard`, `StatusBadge`, `EmptyState`, `PageHeader`, `DataTable shell`)
 - Prisma schema covering core entities and enums for the regulatory platform
 - Demo seed script with realistic multi-role users, applications, notifications, workflow, payments, and audit events
-- Auth.js-compatible credentials auth scaffolding (placeholder login UI + middleware guards)
+- Working Auth.js credentials authentication with seeded Prisma users, role-based redirects, and route guards
 
 ## Project structure
 
@@ -84,22 +84,29 @@ npm run dev
 
 Open: `http://localhost:3000`
 
-## Seeded demo accounts
+## Demo credentials
 
-All demo users use password: `Demo@123`
+- `superadmin@nuprc.demo` / `Demo@123`
+- `admin@nuprc.demo` / `Demo@123`
+- `director@nuprc.demo` / `Demo@123`
+- `review1@nuprc.demo` / `Demo@123`
+- `review2@nuprc.demo` / `Demo@123`
+- `operator@deltaenergy.ng` / `Demo@123`
+- `admin@atlasdw.ng` / `Demo@123`
+- `operator@nigerbasin.ng` / `Demo@123`
 
-- `superadmin@nuprc.demo` (Super Admin)
-- `admin@nuprc.demo` (Admin)
-- `director@nuprc.demo` (Director)
-- `review1@nuprc.demo` (Review Officer)
-- `review2@nuprc.demo` (Review Officer)
-- `operator@deltaenergy.ng` (External Operator)
-- `admin@atlasdw.ng` (Company Admin)
-- `operator@nigerbasin.ng` (External Operator)
+## Authentication and role mapping
+
+- Login uses Auth.js credentials provider backed by Prisma `User` and bcrypt hash verification.
+- Session strategy is JWT, with `roleCode` and `companyId` attached to token/session for route decisions.
+- Post-login destination is role-based:
+  - `EXTERNAL_OPERATOR`, `COMPANY_ADMIN` → `/portal/dashboard`
+  - `REVIEW_OFFICER`, `DIRECTOR` → `/workspace/dashboard`
+  - `ADMIN`, `SUPER_ADMIN` → `/admin/dashboard`
+- Middleware and route-layout guards enforce area access and redirect users to their own dashboard when they hit unauthorized areas.
 
 ## What remains for next phase
 
-- Wire login page to real `signIn()` and secure session lifecycle with full Auth.js integration
 - Add domain modules for application creation, review workflow actions, and role-aware API handlers
 - Implement robust validation and audit-safe mutation flows
 - Add file upload pipeline and document storage integration
