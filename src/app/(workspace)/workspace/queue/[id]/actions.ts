@@ -93,7 +93,57 @@ export async function requestClarificationAction(applicationId: string, formData
     redirect(`/workspace/queue/${applicationId}?error=${encodeURIComponent("Clarification message is required.")}`);
   }
 
-  await executeReviewAction(applicationId, "RETURNED_FOR_CLARIFICATION", note);
+  const user = await requireWorkspaceUser();
+  const application = await prisma.application.findUnique({
+    where: { id: applicationId },
+    select: { id: true, state: true }
+  });
+
+  if (!application || !actionableStates.includes(application.state)) {
+    redirect(`/workspace/queue/${applicationId}?error=${encodeURIComponent("Application is not available for review action.")}`);
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.reviewAction.create({
+      data: {
+        applicationId,
+        reviewerId: user.id,
+        actionType: "RETURNED_FOR_CLARIFICATION",
+        note
+      }
+    });
+
+    await tx.clarificationRequest.create({
+      data: {
+        applicationId,
+        requestedById: user.id,
+        message: note
+      }
+    });
+
+    if (application.state !== "CLARIFICATION_REQUIRED") {
+      await tx.application.update({
+        where: { id: applicationId },
+        data: { state: "CLARIFICATION_REQUIRED" }
+      });
+
+      await tx.workflowTransition.create({
+        data: {
+          applicationId,
+          actorId: user.id,
+          fromState: application.state,
+          toState: "CLARIFICATION_REQUIRED",
+          comment: note
+        }
+      });
+    }
+  });
+
+  revalidatePath("/workspace/queue");
+  revalidatePath(`/workspace/queue/${applicationId}`);
+  revalidatePath(`/portal/applications/${applicationId}`);
+
+  redirect(`/workspace/queue/${applicationId}?success=${encodeURIComponent("Clarification has been requested from the applicant.")}`);
 }
 
 export async function recommendApprovalAction(applicationId: string, formData: FormData) {
