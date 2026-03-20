@@ -1,13 +1,22 @@
 "use server";
 
-import { ApplicationState, ReviewActionType } from "@prisma/client";
+import { ApplicationState, DecisionType, ReviewActionType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { prisma } from "@/lib/prisma";
+import { generateDecisionLetterReference } from "@/lib/letters";
 import { ensureDirector, requireWorkspaceUser } from "@/lib/workspace-review";
 
 const actionableStates: ApplicationState[] = ["SUBMITTED", "IN_REVIEW", "CLARIFICATION_REQUIRED"];
+
+
+
+function resolveDecisionType(actionType: Exclude<ReviewActionType, "ASSIGNED">): DecisionType | null {
+  if (actionType === "FINAL_APPROVAL") return "APPROVAL";
+  if (actionType === "FINAL_REJECTION") return "REJECTION";
+  return null;
+}
 
 const reviewerActionConfig = {
   COMMENTED: { toState: null, successMessage: "Comment added successfully." },
@@ -68,10 +77,52 @@ async function executeReviewAction(applicationId: string, actionType: Exclude<Re
         }
       });
     }
+
+    const decisionType = resolveDecisionType(actionType);
+
+    if (decisionType) {
+      const now = new Date();
+      const existingLetter = await tx.decisionLetter.findFirst({
+        where: {
+          applicationId,
+          decisionType
+        },
+        select: { id: true }
+      });
+
+      const summary = note ||
+        (decisionType === "APPROVAL"
+          ? "Application has met applicable requirements and is hereby approved."
+          : "Application is rejected based on final review outcome.");
+
+      if (existingLetter) {
+        await tx.decisionLetter.update({
+          where: { id: existingLetter.id },
+          data: {
+            summary,
+            issuedAt: now,
+            issuedById: user.id
+          }
+        });
+      } else {
+        const letterRef = await generateDecisionLetterReference(tx, now);
+        await tx.decisionLetter.create({
+          data: {
+            applicationId,
+            issuedById: user.id,
+            decisionType,
+            letterRef,
+            summary,
+            issuedAt: now
+          }
+        });
+      }
+    }
   });
 
   revalidatePath("/workspace/queue");
   revalidatePath(`/workspace/queue/${applicationId}`);
+  revalidatePath(`/portal/applications/${applicationId}`);
 
   redirect(`/workspace/queue/${applicationId}?success=${encodeURIComponent(config.successMessage)}`);
 }

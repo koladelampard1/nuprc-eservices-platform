@@ -35,6 +35,15 @@ export default async function ReviewerApplicationDetailPage({
     include: {
       company: true,
       submittedBy: true,
+      decisionLetters: {
+        select: {
+          id: true,
+          decisionType: true,
+          letterRef: true,
+          issuedAt: true
+        },
+        orderBy: { issuedAt: "desc" }
+      },
       serviceType: {
         include: {
           documentRequirements: {
@@ -81,6 +90,10 @@ export default async function ReviewerApplicationDetailPage({
   ).length;
   const totalRequirements = application.serviceType.documentRequirements.length;
   const canReview = ["SUBMITTED", "IN_REVIEW", "CLARIFICATION_REQUIRED"].includes(application.state);
+
+  const hasAcknowledgementLetter = application.state !== "DRAFT";
+  const approvalLetter = application.decisionLetters.find((letter) => letter.decisionType === "APPROVAL");
+  const rejectionLetter = application.decisionLetters.find((letter) => letter.decisionType === "REJECTION");
 
   const commentAction = addCommentAction.bind(null, application.id);
   const clarificationAction = requestClarificationAction.bind(null, application.id);
@@ -199,6 +212,46 @@ export default async function ReviewerApplicationDetailPage({
           ) : (
             <p className="text-muted-foreground">No required documents are configured for this service.</p>
           )}
+        </CardContent>
+      </Card>
+
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Official Letters</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <div className="flex flex-wrap gap-3">
+            {hasAcknowledgementLetter ? (
+              <Link href={`/api/workspace/applications/${application.id}/letters/acknowledgement`} target="_blank">
+                <Button variant="outline">Download Acknowledgement</Button>
+              </Link>
+            ) : null}
+
+            {approvalLetter ? (
+              <Link href={`/api/workspace/applications/${application.id}/letters/approval`} target="_blank">
+                <Button>Download Approval Letter</Button>
+              </Link>
+            ) : null}
+
+            {rejectionLetter ? (
+              <Link href={`/api/workspace/applications/${application.id}/letters/rejection`} target="_blank">
+                <Button variant="outline" className="border-rose-300 text-rose-700 hover:bg-rose-50">Download Rejection Letter</Button>
+              </Link>
+            ) : null}
+          </div>
+
+          {approvalLetter ? (
+            <p className="text-xs text-muted-foreground">
+              Approval Ref: {approvalLetter.letterRef} • Issued {new Intl.DateTimeFormat("en-NG", { dateStyle: "medium" }).format(approvalLetter.issuedAt)}
+            </p>
+          ) : null}
+
+          {rejectionLetter ? (
+            <p className="text-xs text-muted-foreground">
+              Rejection Ref: {rejectionLetter.letterRef} • Issued {new Intl.DateTimeFormat("en-NG", { dateStyle: "medium" }).format(rejectionLetter.issuedAt)}
+            </p>
+          ) : null}
         </CardContent>
       </Card>
 
