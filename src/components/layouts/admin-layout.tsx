@@ -9,6 +9,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
       navItems={[
         { href: "/admin/dashboard", label: "Dashboard" },
         { href: "/admin/users", label: "Users" },
+        { href: "/admin/companies", label: "Companies" },
         { href: "/admin/services", label: "Services" },
         { href: "/admin/workflows", label: "Workflow Settings" },
         { href: "/admin/email-log", label: "Email Log" },

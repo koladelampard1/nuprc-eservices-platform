@@ -33,7 +33,7 @@ export default async function EditApplicationDraftPage({
     redirect(`/portal/applications/${application.id}`);
   }
 
-  const fields = getServiceFields(application.serviceType.code);
+  const fields = await getServiceFields(application.serviceType.code);
   const initialValues = Object.fromEntries(application.formEntries.map((entry) => [entry.fieldKey, entry.value]));
   const saveDraft = saveDraftAction.bind(null, { serviceCode: application.serviceType.code, applicationId: application.id });
   const submit = submitApplicationAction.bind(null, { serviceCode: application.serviceType.code, applicationId: application.id });

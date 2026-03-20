@@ -14,6 +14,7 @@ async function main() {
   await prisma.applicationDocument.deleteMany();
   await prisma.applicationFormEntry.deleteMany();
   await prisma.application.deleteMany();
+  await prisma.serviceFormField.deleteMany();
   await prisma.serviceDocumentRequirement.deleteMany();
   await prisma.serviceType.deleteMany();
   await prisma.user.deleteMany();
@@ -85,6 +86,24 @@ async function main() {
       { serviceTypeId: serviceTypes[0].id, name: "Safety Policy", sortOrder: 2 },
       { serviceTypeId: serviceTypes[1].id, name: "Environmental Impact Assessment", sortOrder: 1 },
       { serviceTypeId: serviceTypes[2].id, name: "Previous Field Report", sortOrder: 1 }
+    ]
+  });
+
+  await prisma.serviceFormField.createMany({
+    data: [
+      { serviceTypeId: serviceTypes[0].id, fieldKey: "operationalArea", fieldLabel: "Operational Area", fieldType: "TEXT", isRequired: true, sortOrder: 1 },
+      { serviceTypeId: serviceTypes[0].id, fieldKey: "contactPerson", fieldLabel: "Contact Person", fieldType: "TEXT", isRequired: true, sortOrder: 2 },
+      { serviceTypeId: serviceTypes[0].id, fieldKey: "contactPhone", fieldLabel: "Contact Phone", fieldType: "TEXT", isRequired: true, sortOrder: 3 },
+      { serviceTypeId: serviceTypes[0].id, fieldKey: "justification", fieldLabel: "Justification", fieldType: "TEXTAREA", isRequired: true, sortOrder: 4 },
+      { serviceTypeId: serviceTypes[0].id, fieldKey: "expectedStartDate", fieldLabel: "Expected Start Date", fieldType: "DATE", isRequired: true, sortOrder: 5 },
+      { serviceTypeId: serviceTypes[1].id, fieldKey: "projectSite", fieldLabel: "Project Site", fieldType: "TEXT", isRequired: true, sortOrder: 1 },
+      { serviceTypeId: serviceTypes[1].id, fieldKey: "environmentalSummary", fieldLabel: "Environmental Summary", fieldType: "TEXTAREA", isRequired: true, sortOrder: 2 },
+      { serviceTypeId: serviceTypes[1].id, fieldKey: "contactPerson", fieldLabel: "Contact Person", fieldType: "TEXT", isRequired: true, sortOrder: 3 },
+      { serviceTypeId: serviceTypes[1].id, fieldKey: "complianceNotes", fieldLabel: "Compliance Notes", fieldType: "TEXTAREA", isRequired: true, sortOrder: 4 },
+      { serviceTypeId: serviceTypes[2].id, fieldKey: "assetName", fieldLabel: "Asset Name", fieldType: "TEXT", isRequired: true, sortOrder: 1 },
+      { serviceTypeId: serviceTypes[2].id, fieldKey: "activityType", fieldLabel: "Activity Type", fieldType: "TEXT", isRequired: true, sortOrder: 2 },
+      { serviceTypeId: serviceTypes[2].id, fieldKey: "reportingPeriod", fieldLabel: "Reporting Period", fieldType: "TEXT", isRequired: true, sortOrder: 3 },
+      { serviceTypeId: serviceTypes[2].id, fieldKey: "technicalSummary", fieldLabel: "Technical Summary", fieldType: "TEXTAREA", isRequired: true, sortOrder: 4 }
     ]
   });
 

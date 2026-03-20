@@ -1,4 +1,4 @@
-import { ApplicationState, PaymentStatus, Prisma } from "@prisma/client";
+import { ApplicationState, PaymentStatus, Prisma, ServiceFormFieldType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
 import { auth } from "@/lib/auth";
@@ -11,8 +11,11 @@ import { prisma } from "@/lib/prisma";
 export type ServiceField = {
   key: string;
   label: string;
-  type: "text" | "textarea" | "date";
+  type: "text" | "textarea" | "date" | "number" | "select";
   required: boolean;
+  placeholder?: string;
+  helpText?: string;
+  options?: string[];
 };
 
 export const SERVICE_FORM_CONFIG: Record<string, ServiceField[]> = {
@@ -35,6 +38,14 @@ export const SERVICE_FORM_CONFIG: Record<string, ServiceField[]> = {
     { key: "reportingPeriod", label: "Reporting Period", type: "text", required: true },
     { key: "technicalSummary", label: "Technical Summary", type: "textarea", required: true }
   ]
+};
+
+const FIELD_TYPE_MAP: Record<ServiceFormFieldType, ServiceField["type"]> = {
+  TEXT: "text",
+  TEXTAREA: "textarea",
+  DATE: "date",
+  NUMBER: "number",
+  SELECT: "select"
 };
 
 export class SubmissionBlockedError extends Error {
@@ -70,20 +81,54 @@ export async function requirePortalUser() {
   return user;
 }
 
-export function getServiceFields(serviceCode: string) {
-  return SERVICE_FORM_CONFIG[serviceCode] ?? [];
+function parseSelectOptions(raw?: string | null) {
+  if (!raw) return [];
+  return raw
+    .split("\n")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
 }
 
-export function normalizeServiceFormValues(serviceCode: string, formData: FormData) {
-  const fields = getServiceFields(serviceCode);
+export async function getServiceFields(serviceCode: string) {
+  const service = await prisma.serviceType.findUnique({
+    where: { code: serviceCode.toUpperCase() },
+    select: {
+      code: true,
+      formFields: {
+        orderBy: [{ sortOrder: "asc" }, { fieldLabel: "asc" }]
+      }
+    }
+  });
+
+  if (!service) {
+    return [];
+  }
+
+  if (service.formFields.length > 0) {
+    return service.formFields.map((field) => ({
+      key: field.fieldKey,
+      label: field.fieldLabel,
+      type: FIELD_TYPE_MAP[field.fieldType],
+      required: field.isRequired,
+      placeholder: field.placeholder ?? undefined,
+      helpText: field.helpText ?? undefined,
+      options: parseSelectOptions(field.selectOptions)
+    }));
+  }
+
+  return SERVICE_FORM_CONFIG[service.code] ?? [];
+}
+
+export async function normalizeServiceFormValues(serviceCode: string, formData: FormData) {
+  const fields = await getServiceFields(serviceCode);
   return fields.map((field) => ({
     ...field,
     value: String(formData.get(field.key) ?? "").trim()
   }));
 }
 
-export function validateRequiredServiceFields(serviceCode: string, formData: FormData) {
-  const values = normalizeServiceFormValues(serviceCode, formData);
+export async function validateRequiredServiceFields(serviceCode: string, formData: FormData) {
+  const values = await normalizeServiceFormValues(serviceCode, formData);
   const missing = values.filter((entry) => entry.required && !entry.value);
 
   if (missing.length) {
@@ -139,8 +184,8 @@ export async function persistApplication(params: {
 
   const values =
     params.mode === "submit"
-      ? validateRequiredServiceFields(serviceType.code, params.formData)
-      : normalizeServiceFormValues(serviceType.code, params.formData);
+      ? await validateRequiredServiceFields(serviceType.code, params.formData)
+      : await normalizeServiceFormValues(serviceType.code, params.formData);
 
   const applicationId = await prisma.$transaction(async (tx) => {
     let currentApplicationId = params.applicationId;
