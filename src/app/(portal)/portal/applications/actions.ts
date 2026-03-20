@@ -60,6 +60,12 @@ export async function submitApplicationAction(
     const encodedMessage = encodeURIComponent(message);
 
     if (error instanceof SubmissionBlockedError) {
+      if (!context.applicationId) {
+        redirect(
+          `/portal/applications/${error.applicationId}?submitStatus=deferred`
+        );
+      }
+
       redirect(`/portal/applications/${error.applicationId}/edit?error=${encodedMessage}`);
     }
 

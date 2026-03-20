@@ -37,6 +37,7 @@ export default async function ApplicationDetailPage({
     uploadError?: string;
     saved?: string;
     submitted?: string;
+    submitStatus?: string;
     submitError?: string;
       clarificationResponded?: string;
       paymentGenerated?: string;
@@ -133,6 +134,12 @@ export default async function ApplicationDetailPage({
       {searchParams.submitted === "true" ? (
         <p className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
           Application submitted successfully.
+        </p>
+      ) : null}
+
+      {searchParams.submitStatus === "deferred" ? (
+        <p className="rounded-md border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+          Draft saved. Complete required documents/payment before final submission.
         </p>
       ) : null}
 
