@@ -1,28 +1,75 @@
-import { DataTableShell } from "@/components/app/data-table-shell";
+import Link from "next/link";
+
 import { PageHeader } from "@/components/app/page-header";
+import { StatusBadge } from "@/components/app/status-badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { prisma } from "@/lib/prisma";
+import { stateToneMap } from "@/lib/workspace-review";
 
 export default async function WorkspaceQueuePage() {
   const queueItems = await prisma.application.findMany({
-    where: { state: { in: ["SUBMITTED", "IN_REVIEW", "CLARIFICATION_REQUIRED"] } },
-    include: { company: true, assignedTo: true },
-    orderBy: { updatedAt: "desc" },
-    take: 10
+    where: { state: { in: ["SUBMITTED", "IN_REVIEW"] } },
+    include: { company: true, serviceType: true },
+    orderBy: { submittedAt: "desc" }
   });
 
   return (
     <section className="space-y-6">
-      <PageHeader title="Review Queue" description="Prioritized intake queue with ownership and stage context." />
-      <DataTableShell
-        title="Queue"
-        columns={["Reference", "Company", "State", "Assignee"]}
-        rows={queueItems.map((item) => [
-          item.referenceNo,
-          item.company.name,
-          item.state,
-          item.assignedTo?.fullName ?? "Unassigned"
-        ])}
+      <PageHeader
+        title="Reviewer Dashboard"
+        description="View submitted applications, inspect details, and perform reviewer actions."
       />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Applications Awaiting Review</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Reference Number</TableHead>
+                <TableHead>Company Name</TableHead>
+                <TableHead>Service Type</TableHead>
+                <TableHead>Submission Date</TableHead>
+                <TableHead>Current State</TableHead>
+                <TableHead className="text-right">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {queueItems.length ? (
+                queueItems.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell className="font-medium">{item.referenceNo}</TableCell>
+                    <TableCell>{item.company.name}</TableCell>
+                    <TableCell>{item.serviceType.name}</TableCell>
+                    <TableCell>
+                      {item.submittedAt
+                        ? new Intl.DateTimeFormat("en-NG", { dateStyle: "medium", timeStyle: "short" }).format(item.submittedAt)
+                        : "-"}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge label={item.state} tone={stateToneMap[item.state]} />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Link className="text-sm font-medium text-primary hover:underline" href={`/workspace/queue/${item.id}`}>
+                        View application
+                      </Link>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell className="text-muted-foreground" colSpan={6}>
+                    No submitted applications are currently awaiting review.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </section>
   );
 }
