@@ -34,6 +34,16 @@ export const SERVICE_FORM_CONFIG: Record<string, ServiceField[]> = {
   ]
 };
 
+export class SubmissionBlockedError extends Error {
+  applicationId: string;
+
+  constructor(message: string, applicationId: string) {
+    super(message);
+    this.name = "SubmissionBlockedError";
+    this.applicationId = applicationId;
+  }
+}
+
 export async function requirePortalUser() {
   const session = await auth();
 
@@ -90,6 +100,27 @@ async function generateReferenceNo(tx: Prisma.TransactionClient) {
   return `NUPRC-APP-${String(current + 1).padStart(4, "0")}`;
 }
 
+async function persistFormEntries(
+  tx: Prisma.TransactionClient,
+  applicationId: string,
+  values: Array<{ key: string; label: string; value: string }>
+) {
+  await tx.applicationFormEntry.deleteMany({ where: { applicationId } });
+
+  if (!values.length) {
+    return;
+  }
+
+  await tx.applicationFormEntry.createMany({
+    data: values.map((entry) => ({
+      applicationId,
+      fieldKey: entry.key,
+      fieldLabel: entry.label,
+      value: entry.value
+    }))
+  });
+}
+
 export async function persistApplication(params: {
   mode: "draft" | "submit";
   serviceCode: string;
@@ -108,15 +139,14 @@ export async function persistApplication(params: {
       ? validateRequiredServiceFields(serviceType.code, params.formData)
       : normalizeServiceFormValues(serviceType.code, params.formData);
 
-  return prisma.$transaction(async (tx) => {
-    let applicationId = params.applicationId;
+  const applicationId = await prisma.$transaction(async (tx) => {
+    let currentApplicationId = params.applicationId;
 
-    if (applicationId) {
+    if (currentApplicationId) {
       const existing = await tx.application.findFirst({
         where: {
-          id: applicationId,
-          companyId: user.companyId ?? "",
-          submittedById: user.id
+          id: currentApplicationId,
+          companyId: user.companyId ?? ""
         }
       });
 
@@ -127,27 +157,7 @@ export async function persistApplication(params: {
       if (existing.state !== ApplicationState.DRAFT) {
         throw new Error("Only draft applications can be edited.");
       }
-
-      if (params.mode === "submit") {
-        const missingRequiredDocuments = await getMissingRequiredDocuments(tx, existing.id, existing.serviceTypeId);
-        if (missingRequiredDocuments.length) {
-          throw new Error(`Missing required documents: ${missingRequiredDocuments.join(", ")}`);
-        }
-      }
-
-      await tx.application.update({
-        where: { id: existing.id },
-        data: {
-          state: params.mode === "submit" ? ApplicationState.SUBMITTED : ApplicationState.DRAFT,
-          submittedAt: params.mode === "submit" ? new Date() : null,
-          currentStep: params.mode === "submit" ? "Submitted" : "Draft"
-        }
-      });
     } else {
-      if (params.mode === "submit") {
-        throw new Error("Please save as draft first and upload all required documents before submission.");
-      }
-
       const referenceNo = await generateReferenceNo(tx);
       const created = await tx.application.create({
         data: {
@@ -160,22 +170,46 @@ export async function persistApplication(params: {
           currentStep: "Draft"
         }
       });
-      applicationId = created.id;
+      currentApplicationId = created.id;
     }
 
-    await tx.applicationFormEntry.deleteMany({ where: { applicationId } });
+    await persistFormEntries(tx, currentApplicationId, values);
 
-    if (values.length) {
-      await tx.applicationFormEntry.createMany({
-        data: values.map((entry) => ({
-          applicationId: applicationId!,
-          fieldKey: entry.key,
-          fieldLabel: entry.label,
-          value: entry.value
-        }))
+    if (params.mode === "draft") {
+      await tx.application.update({
+        where: { id: currentApplicationId },
+        data: {
+          state: ApplicationState.DRAFT,
+          submittedAt: null,
+          currentStep: "Draft"
+        }
       });
     }
 
-    return applicationId!;
+    return currentApplicationId;
   });
+
+  if (params.mode === "submit") {
+    const missingRequiredDocuments = await prisma.$transaction((tx) =>
+      getMissingRequiredDocuments(tx, applicationId, serviceType.id)
+    );
+
+    if (missingRequiredDocuments.length) {
+      throw new SubmissionBlockedError(
+        `Missing required documents: ${missingRequiredDocuments.join(", ")}`,
+        applicationId
+      );
+    }
+
+    await prisma.application.update({
+      where: { id: applicationId },
+      data: {
+        state: ApplicationState.SUBMITTED,
+        submittedAt: new Date(),
+        currentStep: "Submitted"
+      }
+    });
+  }
+
+  return applicationId;
 }
