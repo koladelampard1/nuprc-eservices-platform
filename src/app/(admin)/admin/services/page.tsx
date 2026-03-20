@@ -11,6 +11,7 @@ import {
   createServiceFormFieldAction,
   createRequirementAction,
   createServiceTypeAction,
+  deleteServiceTypeAction,
   deleteServiceFormFieldAction,
   deleteRequirementAction,
   moveServiceFormFieldAction,
@@ -247,7 +248,7 @@ export default async function AdminServicesPage({
                     </TableCell>
                     <TableCell>{service._count.applications}</TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
                         <a href={`/admin/services?service=${service.id}`} className="text-sm font-medium text-primary hover:underline">
                           Manage
                         </a>
@@ -255,6 +256,12 @@ export default async function AdminServicesPage({
                           <input type="hidden" name="serviceTypeId" value={service.id} />
                           <Button type="submit" size="sm" variant="outline">
                             {service.isActive ? "Deactivate" : "Activate"}
+                          </Button>
+                        </form>
+                        <form action={deleteServiceTypeAction}>
+                          <input type="hidden" name="serviceTypeId" value={service.id} />
+                          <Button type="submit" size="sm" variant="outline">
+                            Delete
                           </Button>
                         </form>
                       </div>
@@ -283,6 +290,35 @@ export default async function AdminServicesPage({
                 <input type="checkbox" name="paymentRequired" className="h-4 w-4 rounded border-border" />
                 Payment required for this service
               </label>
+              <div className="space-y-2 rounded-md border border-dashed border-border p-3">
+                <p className="text-sm font-medium text-slate-900">Initial application fields (optional)</p>
+                <p className="text-xs text-muted-foreground">
+                  Configure up to three fields as part of service creation. You can add/edit more fields later from the Application Form Fields section.
+                </p>
+                {[0, 1, 2].map((index) => (
+                  <div key={index} className="grid gap-2 rounded-md border border-border/50 p-2 md:grid-cols-7">
+                    <Input name="fieldKey[]" placeholder="fieldKey" />
+                    <Input name="fieldLabel[]" placeholder="Field label" />
+                    <select name="fieldType[]" defaultValue="TEXT" className="rounded-md border border-border bg-background px-2 py-2 text-sm">
+                      <option value="TEXT">Text</option>
+                      <option value="TEXTAREA">Textarea</option>
+                      <option value="DATE">Date</option>
+                      <option value="NUMBER">Number</option>
+                      <option value="SELECT">Select</option>
+                    </select>
+                    <select name="required[]" defaultValue="false" className="rounded-md border border-border bg-background px-2 py-2 text-sm">
+                      <option value="false">Optional</option>
+                      <option value="true">Required</option>
+                    </select>
+                    <Input name="sortOrder[]" type="number" placeholder="Sort" defaultValue={String(index)} />
+                    <Input name="placeholder[]" placeholder="Placeholder" />
+                    <Input name="helpText[]" placeholder="Help text" />
+                    <div className="md:col-span-7">
+                      <Input name="selectOptions[]" placeholder="Select options (newline separated; select fields only)" />
+                    </div>
+                  </div>
+                ))}
+              </div>
               <Button type="submit">Create Service Type</Button>
             </form>
           </CardContent>

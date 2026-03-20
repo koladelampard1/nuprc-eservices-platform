@@ -34,6 +34,17 @@ export default async function NewApplicationPage({
     notFound();
   }
 
+  if (!service.isActive) {
+    return (
+      <section className="space-y-6">
+        <PageHeader title="Service not available" description="This service is currently inactive or unavailable for new applications." />
+        <Link href="/portal/services">
+          <Button variant="outline">Back to Services</Button>
+        </Link>
+      </section>
+    );
+  }
+
   const fields = await getServiceFields(service.code);
   const saveDraft = saveDraftAction.bind(null, { serviceCode: service.code });
   const submit = submitApplicationAction.bind(null, { serviceCode: service.code });

@@ -18,6 +18,87 @@ function asText(value: FormDataEntryValue | null) {
 
 const FIELD_TYPE_VALUES: ServiceFormFieldType[] = ["TEXT", "TEXTAREA", "DATE", "NUMBER", "SELECT"];
 
+type PendingFieldConfig = {
+  fieldKey: string;
+  fieldLabel: string;
+  fieldType: ServiceFormFieldType;
+  isRequired: boolean;
+  sortOrder: number;
+  placeholder: string | null;
+  helpText: string | null;
+  selectOptions: string | null;
+};
+
+function parsePendingFieldConfigs(formData: FormData): PendingFieldConfig[] {
+  const fieldKeys = formData.getAll("fieldKey[]").map((entry) => asText(entry));
+  const fieldLabels = formData.getAll("fieldLabel[]").map((entry) => asText(entry));
+  const fieldTypes = formData.getAll("fieldType[]").map((entry) => asText(entry).toUpperCase());
+  const requiredFlags = formData.getAll("required[]").map((entry) => asText(entry).toLowerCase());
+  const sortOrders = formData.getAll("sortOrder[]").map((entry) => Number.parseInt(asText(entry) || "0", 10));
+  const placeholders = formData.getAll("placeholder[]").map((entry) => asText(entry));
+  const helpTexts = formData.getAll("helpText[]").map((entry) => asText(entry));
+  const selectOptions = formData.getAll("selectOptions[]").map((entry) => asText(entry));
+
+  const maxRows = Math.max(
+    fieldKeys.length,
+    fieldLabels.length,
+    fieldTypes.length,
+    requiredFlags.length,
+    sortOrders.length,
+    placeholders.length,
+    helpTexts.length,
+    selectOptions.length
+  );
+
+  const configs: PendingFieldConfig[] = [];
+  const seenKeys = new Set<string>();
+
+  for (let index = 0; index < maxRows; index += 1) {
+    const fieldKey = fieldKeys[index] ?? "";
+    const fieldLabel = fieldLabels[index] ?? "";
+    const fieldType = (fieldTypes[index] ?? "TEXT") as ServiceFormFieldType;
+    const required = requiredFlags[index] ?? "false";
+    const sortOrder = Number.isFinite(sortOrders[index]) ? sortOrders[index] : 0;
+    const placeholder = placeholders[index] ?? "";
+    const helpText = helpTexts[index] ?? "";
+    const options = selectOptions[index] ?? "";
+
+    const hasAnyValue = [fieldKey, fieldLabel, fieldType, placeholder, helpText, options].some((value) => value.length > 0);
+    if (!hasAnyValue) continue;
+
+    if (!fieldKey || !fieldLabel) {
+      redirect(`/admin/services?error=Each+configured+field+must+include+both+field+key+and+field+label.+Check+row+${index + 1}.`);
+    }
+
+    if (!FIELD_TYPE_VALUES.includes(fieldType)) {
+      redirect(`/admin/services?error=Invalid+field+type+provided+in+row+${index + 1}.`);
+    }
+
+    if (fieldType === "SELECT" && !options) {
+      redirect(`/admin/services?error=Select+field+in+row+${index + 1}+requires+at+least+one+option.`);
+    }
+
+    if (seenKeys.has(fieldKey.toLowerCase())) {
+      redirect("/admin/services?error=Field+keys+must+be+unique+within+the+same+service+creation+request.");
+    }
+
+    seenKeys.add(fieldKey.toLowerCase());
+
+    configs.push({
+      fieldKey,
+      fieldLabel,
+      fieldType,
+      isRequired: required === "true",
+      sortOrder,
+      placeholder: placeholder || null,
+      helpText: helpText || null,
+      selectOptions: fieldType === "SELECT" ? options : null
+    });
+  }
+
+  return configs;
+}
+
 export async function createServiceTypeAction(formData: FormData) {
   const actor = await requireAdminUser();
 
@@ -26,6 +107,7 @@ export async function createServiceTypeAction(formData: FormData) {
   const description = asText(formData.get("description"));
   const paymentRequired = formData.get("paymentRequired") === "on";
   const baseFeeValue = toNumber(formData.get("baseFeeNgn"));
+  const pendingFieldConfigs = parsePendingFieldConfigs(formData);
 
   if (!code || !name || !description) {
     redirect("/admin/services?error=Please+provide+code%2C+name%2C+and+description.");
@@ -44,7 +126,12 @@ export async function createServiceTypeAction(formData: FormData) {
         name,
         description,
         baseFeeNgn,
-        isActive: true
+        isActive: true,
+        formFields: pendingFieldConfigs.length
+          ? {
+              create: pendingFieldConfigs
+            }
+          : undefined
       }
     });
 
@@ -135,6 +222,54 @@ export async function toggleServiceTypeActiveAction(formData: FormData) {
   revalidatePath("/admin/services");
   revalidatePath("/portal/services");
   redirect(`/admin/services?service=${serviceTypeId}&success=Service+type+status+updated.`);
+}
+
+export async function deleteServiceTypeAction(formData: FormData) {
+  const actor = await requireAdminUser();
+  const serviceTypeId = asText(formData.get("serviceTypeId"));
+
+  if (!serviceTypeId) {
+    redirect("/admin/services?error=Missing+service+type+identifier.");
+  }
+
+  const serviceType = await prisma.serviceType.findUnique({
+    where: { id: serviceTypeId },
+    include: {
+      _count: {
+        select: {
+          applications: true
+        }
+      }
+    }
+  });
+
+  if (!serviceType) {
+    redirect("/admin/services?error=Service+type+not+found.");
+  }
+
+  if (serviceType._count.applications > 0) {
+    redirect(
+      `/admin/services?service=${serviceTypeId}&error=Cannot+delete+service+with+existing+applications.+Deactivate+it+instead.`
+    );
+  }
+
+  await prisma.$transaction([
+    prisma.serviceDocumentRequirement.deleteMany({ where: { serviceTypeId } }),
+    prisma.serviceFormField.deleteMany({ where: { serviceTypeId } }),
+    prisma.serviceType.delete({ where: { id: serviceTypeId } })
+  ]);
+
+  await createAdminAuditLog({
+    actorId: actor.id,
+    action: "SERVICE_TYPE_DELETED",
+    entityType: "SERVICE_TYPE",
+    entityId: serviceTypeId,
+    metadata: { code: serviceType.code }
+  });
+
+  revalidatePath("/admin/services");
+  revalidatePath("/portal/services");
+  redirect("/admin/services?success=Service+type+deleted.");
 }
 
 export async function createRequirementAction(formData: FormData) {

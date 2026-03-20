@@ -94,13 +94,14 @@ export async function getServiceFields(serviceCode: string) {
     where: { code: serviceCode.toUpperCase() },
     select: {
       code: true,
+      isActive: true,
       formFields: {
         orderBy: [{ sortOrder: "asc" }, { fieldLabel: "asc" }]
       }
     }
   });
 
-  if (!service) {
+  if (!service || !service.isActive) {
     return [];
   }
 
@@ -176,10 +177,14 @@ export async function persistApplication(params: {
   formData: FormData;
 }) {
   const user = await requirePortalUser();
-  const serviceType = await prisma.serviceType.findUnique({ where: { code: params.serviceCode } });
+  const serviceType = await prisma.serviceType.findUnique({ where: { code: params.serviceCode.toUpperCase() } });
 
   if (!serviceType) {
     throw new Error("Selected service type was not found.");
+  }
+
+  if (!serviceType.isActive) {
+    throw new Error("This service is currently unavailable for new applications.");
   }
 
   const values =

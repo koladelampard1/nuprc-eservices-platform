@@ -10,6 +10,10 @@ function asText(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
 }
 
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
 export async function createCompanyAction(formData: FormData) {
   const actor = await requireAdminUser();
   const name = asText(formData.get("name"));
@@ -18,6 +22,10 @@ export async function createCompanyAction(formData: FormData) {
 
   if (!name || !rcNumber || !contactEmail) {
     redirect("/admin/companies?error=Name%2C+RC+number%2C+and+contact+email+are+required.");
+  }
+
+  if (!isValidEmail(contactEmail)) {
+    redirect("/admin/companies?error=Please+provide+a+valid+contact+email+address.");
   }
 
   try {
@@ -54,6 +62,10 @@ export async function updateCompanyAction(formData: FormData) {
 
   if (!companyId || !name || !rcNumber || !contactEmail) {
     redirect("/admin/companies?error=Missing+company+details+for+update.");
+  }
+
+  if (!isValidEmail(contactEmail)) {
+    redirect(`/admin/companies?company=${companyId}&error=Please+provide+a+valid+contact+email+address.`);
   }
 
   try {
