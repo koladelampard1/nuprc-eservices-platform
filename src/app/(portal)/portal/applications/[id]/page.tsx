@@ -5,7 +5,11 @@ import { PageHeader } from "@/components/app/page-header";
 import { StatusBadge } from "@/components/app/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DOCUMENT_UPLOAD_POLICY, computeLatestUploadsByRequirement } from "@/lib/application-document";
+import {
+  DOCUMENT_UPLOAD_POLICY,
+  computeLatestUploadsByRequirement,
+  getMissingRequiredDocuments
+} from "@/lib/application-document";
 import { requirePortalUser } from "@/lib/portal-application";
 import { prisma } from "@/lib/prisma";
 
@@ -59,11 +63,17 @@ export default async function ApplicationDetailPage({
     application.documents
   );
 
+  const missingRequiredDocuments = await prisma.$transaction((tx) =>
+    getMissingRequiredDocuments(tx, application.id, application.serviceType.id)
+  );
+
   const uploadedRequirements = application.serviceType.documentRequirements.filter(
     (requirement) => latestUploadsByRequirement[requirement.id]
   ).length;
   const totalRequirements = application.serviceType.documentRequirements.length;
   const isChecklistComplete = totalRequirements === 0 || uploadedRequirements === totalRequirements;
+  const canEditDraft = application.state === "DRAFT";
+  const canSubmitApplication = canEditDraft && missingRequiredDocuments.length === 0;
   const submitAction = submitDraftFromDetailAction.bind(null, application.id);
 
   return (
@@ -229,12 +239,12 @@ export default async function ApplicationDetailPage({
         </CardContent>
       </Card>
 
-      {application.state === "DRAFT" ? (
+      {canEditDraft ? (
         <div className="flex flex-wrap gap-3">
           <Link href={`/portal/applications/${application.id}/edit`}>
             <Button>Edit Draft</Button>
           </Link>
-          {isChecklistComplete ? (
+          {canSubmitApplication ? (
             <form action={submitAction}>
               <Button type="submit">Submit Application</Button>
             </form>

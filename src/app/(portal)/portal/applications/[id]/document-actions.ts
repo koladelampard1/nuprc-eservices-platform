@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { saveApplicationDocument } from "@/lib/application-document";
 import { requirePortalUser } from "@/lib/portal-application";
 import { prisma } from "@/lib/prisma";
+import { isNextRedirectError } from "@/lib/server-action";
 
 export async function uploadApplicationDocumentAction(
   context: { applicationId: string; requirementId: string },
@@ -60,12 +61,16 @@ export async function uploadApplicationDocumentAction(
       uploadedByUserId: user.id,
       file
     });
-
-    revalidatePath(`/portal/applications/${context.applicationId}`);
-    revalidatePath(`/portal/applications/${context.applicationId}/edit`);
-    redirect(`/portal/applications/${context.applicationId}?uploaded=true`);
   } catch (error) {
+    if (isNextRedirectError(error)) {
+      throw error;
+    }
+
     const message = error instanceof Error ? error.message : "Unable to upload document right now.";
     redirect(`/portal/applications/${context.applicationId}?uploadError=${encodeURIComponent(message)}`);
   }
+
+  revalidatePath(`/portal/applications/${context.applicationId}`);
+  revalidatePath(`/portal/applications/${context.applicationId}/edit`);
+  redirect(`/portal/applications/${context.applicationId}?uploaded=true`);
 }

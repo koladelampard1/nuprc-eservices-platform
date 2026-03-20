@@ -4,11 +4,16 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { SubmissionBlockedError, submitDraftApplication } from "@/lib/portal-application";
+import { isNextRedirectError } from "@/lib/server-action";
 
 export async function submitDraftFromDetailAction(applicationId: string) {
   try {
     await submitDraftApplication(applicationId);
   } catch (error) {
+    if (isNextRedirectError(error)) {
+      throw error;
+    }
+
     const message = error instanceof Error ? error.message : "Unable to submit application right now.";
     const encodedMessage = encodeURIComponent(message);
 
