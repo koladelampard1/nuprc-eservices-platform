@@ -1,18 +1,185 @@
-import { DataTableShell } from "@/components/app/data-table-shell";
+import { UserRoleCode } from "@prisma/client";
+
 import { PageHeader } from "@/components/app/page-header";
+import { StatusBadge } from "@/components/app/status-badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { requireAdminUser } from "@/lib/admin-console";
 import { prisma } from "@/lib/prisma";
 
-export default async function AdminUsersPage() {
-  const users = await prisma.user.findMany({ include: { role: true, company: true }, orderBy: { createdAt: "asc" } });
+import { toggleUserActiveAction, updateUserRoleAction } from "./actions";
+
+function safeText(value?: string) {
+  if (!value) return null;
+  return value.length > 200 ? `${value.slice(0, 200)}...` : value;
+}
+
+const MANAGEABLE_ROLES: UserRoleCode[] = [
+  "ADMIN",
+  "DIRECTOR",
+  "REVIEW_OFFICER",
+  "EXTERNAL_OPERATOR",
+  "COMPANY_ADMIN",
+  "SUPER_ADMIN"
+];
+
+export default async function AdminUsersPage({
+  searchParams
+}: {
+  searchParams: { q?: string; role?: string; company?: string; state?: string; success?: string; error?: string };
+}) {
+  const admin = await requireAdminUser();
+  const query = searchParams.q?.trim() ?? "";
+  const roleFilter = searchParams.role?.trim() ?? "ALL";
+  const companyFilter = searchParams.company?.trim() ?? "ALL";
+  const stateFilter = searchParams.state?.trim() ?? "ALL";
+
+  const where = {
+    AND: [
+      query
+        ? {
+            OR: [
+              { fullName: { contains: query } },
+              { email: { contains: query } },
+              { company: { name: { contains: query } } }
+            ]
+          }
+        : {},
+      roleFilter === "ALL" ? {} : { role: { code: roleFilter as UserRoleCode } },
+      companyFilter === "ALL" ? {} : { companyId: companyFilter },
+      stateFilter === "ALL" ? {} : { isActive: stateFilter === "ACTIVE" }
+    ]
+  };
+
+  const [users, roles, companies] = await Promise.all([
+    prisma.user.findMany({
+      where,
+      include: { role: true, company: true },
+      orderBy: [{ createdAt: "asc" }]
+    }),
+    prisma.role.findMany({ orderBy: { name: "asc" } }),
+    prisma.company.findMany({ orderBy: { name: "asc" } })
+  ]);
+
+  const roleOptions = roles.filter((role) => MANAGEABLE_ROLES.includes(role.code));
 
   return (
     <section className="space-y-6">
-      <PageHeader title="Users" description="Platform identities across external, internal, and administrative domains." />
-      <DataTableShell
-        title="User Directory"
-        columns={["Name", "Email", "Role", "Company"]}
-        rows={users.map((user) => [user.fullName, user.email, user.role.code, user.company?.name ?? "N/A"])}
-      />
+      <PageHeader title="Users" description="Search, review, activate/deactivate, and update user roles for demo administration." />
+
+      {searchParams.success ? (
+        <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{safeText(searchParams.success)}</p>
+      ) : null}
+      {searchParams.error ? (
+        <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{safeText(searchParams.error)}</p>
+      ) : null}
+
+      <Card>
+        <CardHeader className="space-y-4">
+          <CardTitle>User Directory</CardTitle>
+          <CardDescription>Filter by person, email, role, company, and account state.</CardDescription>
+          <form className="grid gap-3 md:grid-cols-6">
+            <Input name="q" defaultValue={query} placeholder="Search name, email, company" className="md:col-span-2" />
+            <select name="role" defaultValue={roleFilter} className="rounded-md border border-border bg-background px-3 py-2 text-sm">
+              <option value="ALL">All roles</option>
+              {roleOptions.map((role) => (
+                <option key={role.id} value={role.code}>
+                  {role.name}
+                </option>
+              ))}
+            </select>
+            <select name="company" defaultValue={companyFilter} className="rounded-md border border-border bg-background px-3 py-2 text-sm">
+              <option value="ALL">All companies</option>
+              {companies.map((company) => (
+                <option key={company.id} value={company.id}>
+                  {company.name}
+                </option>
+              ))}
+            </select>
+            <select name="state" defaultValue={stateFilter} className="rounded-md border border-border bg-background px-3 py-2 text-sm">
+              <option value="ALL">Any status</option>
+              <option value="ACTIVE">Active only</option>
+              <option value="INACTIVE">Inactive only</option>
+            </select>
+            <Button type="submit" variant="outline">
+              Apply Filters
+            </Button>
+          </form>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Company</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {users.length ? (
+                users.map((user) => {
+                  const canManageSuperAdmin = admin.roleCode === "SUPER_ADMIN";
+                  const isSuperAdminTarget = user.role.code === "SUPER_ADMIN";
+                  const canManageRole = user.id !== admin.id && (!isSuperAdminTarget || canManageSuperAdmin);
+                  const canToggleState = user.id !== admin.id && (!isSuperAdminTarget || canManageSuperAdmin);
+
+                  return (
+                    <TableRow key={user.id}>
+                      <TableCell className="font-medium">{user.fullName}</TableCell>
+                      <TableCell>{user.email}</TableCell>
+                      <TableCell>{user.role.name}</TableCell>
+                      <TableCell>{user.company?.name ?? "N/A"}</TableCell>
+                      <TableCell>
+                        <StatusBadge tone={user.isActive ? "success" : "danger"} label={user.isActive ? "Active" : "Inactive"} />
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-2">
+                          <form action={toggleUserActiveAction} className="flex items-center gap-2">
+                            <input type="hidden" name="userId" value={user.id} />
+                            <Button size="sm" variant="outline" disabled={!canToggleState}>
+                              {user.isActive ? "Deactivate" : "Activate"}
+                            </Button>
+                          </form>
+
+                          <form action={updateUserRoleAction} className="flex items-center gap-2">
+                            <input type="hidden" name="userId" value={user.id} />
+                            <select
+                              name="roleCode"
+                              defaultValue={user.role.code}
+                              className="rounded-md border border-border bg-background px-2 py-1 text-sm"
+                              disabled={!canManageRole}
+                            >
+                              {roleOptions
+                                .filter((role) => canManageSuperAdmin || role.code !== "SUPER_ADMIN")
+                                .map((role) => (
+                                  <option key={role.id} value={role.code}>
+                                    {role.name}
+                                  </option>
+                                ))}
+                            </select>
+                            <Button size="sm" disabled={!canManageRole}>Save Role</Button>
+                          </form>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-muted-foreground">
+                    No users matched the current filters.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </section>
   );
 }
