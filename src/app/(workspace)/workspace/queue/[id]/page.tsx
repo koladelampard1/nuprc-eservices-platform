@@ -9,6 +9,7 @@ import {
   computeLatestUploadsByRequirement,
   getMissingRequiredDocuments
 } from "@/lib/application-document";
+import { buildApplicationTimeline } from "@/lib/application-history";
 import { prisma } from "@/lib/prisma";
 import { actionLabelMap, canTransitionToFinalState, requireWorkspaceUser, stateToneMap } from "@/lib/workspace-review";
 import { deriveGeneratedAtFromReference, formatNaira, getPaymentStatusTone, isPaymentRequired } from "@/lib/payment";
@@ -88,6 +89,19 @@ export default async function ReviewerApplicationDetailPage({
     getMissingRequiredDocuments(tx, application.id, application.serviceType.id)
   );
 
+  const documentsByRequirement = application.documents.reduce<Record<string, typeof application.documents>>((acc, document) => {
+    if (!document.requirementId) {
+      return acc;
+    }
+
+    if (!acc[document.requirementId]) {
+      acc[document.requirementId] = [];
+    }
+
+    acc[document.requirementId].push(document);
+    return acc;
+  }, {});
+
   const isDirector = canTransitionToFinalState(user.roleCode);
   const uploadedRequirements = application.serviceType.documentRequirements.filter(
     (requirement) => latestUploadsByRequirement[requirement.id]
@@ -100,6 +114,8 @@ export default async function ReviewerApplicationDetailPage({
   const hasAcknowledgementLetter = application.state !== "DRAFT";
   const approvalLetter = application.decisionLetters.find((letter) => letter.decisionType === "APPROVAL");
   const rejectionLetter = application.decisionLetters.find((letter) => letter.decisionType === "REJECTION");
+
+  const timelineEvents = buildApplicationTimeline(application);
 
   const commentAction = addCommentAction.bind(null, application.id);
   const clarificationAction = requestClarificationAction.bind(null, application.id);
@@ -187,24 +203,6 @@ export default async function ReviewerApplicationDetailPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>Submitted Form Entries</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          {application.formEntries.length ? (
-            application.formEntries.map((entry) => (
-              <div key={entry.id}>
-                <p className="font-medium text-slate-900">{entry.fieldLabel}</p>
-                <p className="text-slate-700">{entry.value || "-"}</p>
-              </div>
-            ))
-          ) : (
-            <p className="text-muted-foreground">No form entries were submitted.</p>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
           <CardTitle>Uploaded Documents</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 text-sm">
@@ -225,27 +223,56 @@ export default async function ReviewerApplicationDetailPage({
           {application.serviceType.documentRequirements.length ? (
             application.serviceType.documentRequirements.map((requirement) => {
               const latestUpload = latestUploadsByRequirement[requirement.id];
+              const requirementUploads = documentsByRequirement[requirement.id] ?? [];
+
               return (
                 <div key={requirement.id} className="rounded-lg border p-4">
-                  <p className="font-medium text-slate-900">{requirement.name}</p>
-                  <p className="mt-1">
-                    <span className="text-slate-600">Status: </span>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-medium text-slate-900">{requirement.name}</p>
                     <StatusBadge label={latestUpload ? "Uploaded" : "Missing"} tone={latestUpload ? "success" : "warning"} />
-                  </p>
+                  </div>
+
                   {latestUpload ? (
-                    <div className="mt-2 space-y-1">
-                      <p className="text-slate-700">Latest File: {latestUpload.fileName}</p>
+                    <div className="mt-3 space-y-2">
+                      <p className="text-slate-700"><span className="font-medium">Latest File:</span> {latestUpload.fileName}</p>
                       <p className="text-slate-700">
-                        Uploaded At:{" "}
+                        <span className="font-medium">Uploaded At:</span>{" "}
                         {new Intl.DateTimeFormat("en-NG", { dateStyle: "medium", timeStyle: "short" }).format(latestUpload.uploadedAt)}
                       </p>
-                      <Link
-                        href={`/api/workspace/applications/${application.id}/documents/${latestUpload.id}`}
-                        target="_blank"
-                        className="inline-block text-xs text-primary hover:underline"
-                      >
-                        View / Download
-                      </Link>
+                      <div className="flex flex-wrap gap-3">
+                        <Link
+                          href={`/api/workspace/applications/${application.id}/documents/${latestUpload.id}`}
+                          target="_blank"
+                          className="text-xs font-medium text-primary hover:underline"
+                        >
+                          View latest file
+                        </Link>
+                        <Link
+                          href={`/api/workspace/applications/${application.id}/documents/${latestUpload.id}`}
+                          target="_blank"
+                          className="text-xs font-medium text-primary hover:underline"
+                          download
+                        >
+                          Download latest file
+                        </Link>
+                      </div>
+                      {requirementUploads.length > 1 ? (
+                        <div className="rounded-md border bg-slate-50 p-3">
+                          <p className="text-xs font-semibold text-slate-700">Previous versions ({requirementUploads.length - 1})</p>
+                          <div className="mt-2 space-y-1">
+                            {requirementUploads.slice(1, 4).map((document) => (
+                              <Link
+                                key={document.id}
+                                href={`/api/workspace/applications/${application.id}/documents/${document.id}`}
+                                target="_blank"
+                                className="block text-xs text-primary hover:underline"
+                              >
+                                {document.fileName}
+                              </Link>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>
@@ -256,7 +283,6 @@ export default async function ReviewerApplicationDetailPage({
           )}
         </CardContent>
       </Card>
-
 
       <Card>
         <CardHeader>
@@ -282,18 +308,6 @@ export default async function ReviewerApplicationDetailPage({
               </Link>
             ) : null}
           </div>
-
-          {approvalLetter ? (
-            <p className="text-xs text-muted-foreground">
-              Approval Ref: {approvalLetter.letterRef} • Issued {new Intl.DateTimeFormat("en-NG", { dateStyle: "medium" }).format(approvalLetter.issuedAt)}
-            </p>
-          ) : null}
-
-          {rejectionLetter ? (
-            <p className="text-xs text-muted-foreground">
-              Rejection Ref: {rejectionLetter.letterRef} • Issued {new Intl.DateTimeFormat("en-NG", { dateStyle: "medium" }).format(rejectionLetter.issuedAt)}
-            </p>
-          ) : null}
         </CardContent>
       </Card>
 
@@ -320,11 +334,6 @@ export default async function ReviewerApplicationDetailPage({
                   <div className="space-y-1 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2">
                     <p className="font-medium text-emerald-900">Operator Response</p>
                     <p className="text-emerald-900">{request.response}</p>
-                    {request.respondedAt ? (
-                      <p className="text-xs text-emerald-800">
-                        Responded: {new Intl.DateTimeFormat("en-NG", { dateStyle: "medium", timeStyle: "short" }).format(request.respondedAt)}
-                      </p>
-                    ) : null}
                   </div>
                 ) : (
                   <p className="text-xs text-amber-700">Awaiting operator response.</p>
@@ -426,23 +435,19 @@ export default async function ReviewerApplicationDetailPage({
         <CardHeader>
           <CardTitle>Application Timeline / History</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-sm">
-          {application.workflowTransitions.length ? (
-            application.workflowTransitions.map((transition) => (
-              <div key={transition.id} className="rounded-md border p-3">
-                <p className="font-medium">
-                  {transition.fromState} → {transition.toState}
+        <CardContent className="space-y-3 text-sm">
+          {timelineEvents.length ? (
+            timelineEvents.map((event) => (
+              <div key={event.id} className="rounded-md border p-3">
+                <p className="font-medium text-slate-900">{event.title}</p>
+                <p className="text-slate-700">{event.detail}</p>
+                <p className="text-xs text-muted-foreground">
+                  {new Intl.DateTimeFormat("en-NG", { dateStyle: "medium", timeStyle: "short" }).format(event.at)}
                 </p>
-                <p className="text-slate-700">Actor: {transition.actor.fullName}</p>
-                <p className="text-slate-700">
-                  Date:{" "}
-                  {new Intl.DateTimeFormat("en-NG", { dateStyle: "medium", timeStyle: "short" }).format(transition.transitionedAt)}
-                </p>
-                {transition.comment ? <p className="mt-1 text-slate-700">Comment: {transition.comment}</p> : null}
               </div>
             ))
           ) : (
-            <p className="text-muted-foreground">No workflow transitions recorded yet.</p>
+            <p className="text-muted-foreground">No timeline history available.</p>
           )}
 
           <div className="pt-2">
