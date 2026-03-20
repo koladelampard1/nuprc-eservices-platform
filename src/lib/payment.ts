@@ -18,13 +18,28 @@ export function formatNaira(amount: Prisma.Decimal | number) {
 }
 
 export function deriveGeneratedAtFromReference(referenceNo: string) {
-  const match = referenceNo.match(/NUPRC-PAY-(\d{4})(\d{2})(\d{2})-\d{4}/);
+  const match = referenceNo.match(/NUPRC-PAY-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})\d{3}-\d{2}/);
 
-  if (!match) {
+  if (match) {
+    const [, year, month, day, hour, minute, second] = match;
+    const date = new Date(
+      Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second))
+    );
+
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+
+    return date;
+  }
+
+  const legacyMatch = referenceNo.match(/NUPRC-PAY-(\d{4})(\d{2})(\d{2})-\d{4}/);
+
+  if (!legacyMatch) {
     return null;
   }
 
-  const [, year, month, day] = match;
+  const [, year, month, day] = legacyMatch;
   const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
 
   if (Number.isNaN(date.getTime())) {
