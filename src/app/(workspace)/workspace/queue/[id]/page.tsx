@@ -54,6 +54,10 @@ export default async function ReviewerApplicationDetailPage({
       workflowTransitions: {
         include: { actor: true },
         orderBy: { transitionedAt: "desc" }
+      },
+      clarificationRequests: {
+        include: { requestedBy: true },
+        orderBy: { createdAt: "desc" }
       }
     }
   });
@@ -194,6 +198,46 @@ export default async function ReviewerApplicationDetailPage({
             })
           ) : (
             <p className="text-muted-foreground">No required documents are configured for this service.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Clarification Thread</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm">
+          {application.clarificationRequests.length ? (
+            application.clarificationRequests.map((request) => (
+              <div key={request.id} className="space-y-2 rounded-md border p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-medium text-slate-900">Reviewer: {request.requestedBy.fullName}</p>
+                  <StatusBadge
+                    label={request.respondedAt ? "Resolved" : "Unresolved"}
+                    tone={request.respondedAt ? "success" : "warning"}
+                  />
+                </div>
+                <p className="rounded-md bg-slate-50 px-3 py-2 text-slate-700">{request.message}</p>
+                <p className="text-xs text-muted-foreground">
+                  Requested: {new Intl.DateTimeFormat("en-NG", { dateStyle: "medium", timeStyle: "short" }).format(request.createdAt)}
+                </p>
+                {request.response ? (
+                  <div className="space-y-1 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2">
+                    <p className="font-medium text-emerald-900">Operator Response</p>
+                    <p className="text-emerald-900">{request.response}</p>
+                    {request.respondedAt ? (
+                      <p className="text-xs text-emerald-800">
+                        Responded: {new Intl.DateTimeFormat("en-NG", { dateStyle: "medium", timeStyle: "short" }).format(request.respondedAt)}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className="text-xs text-amber-700">Awaiting operator response.</p>
+                )}
+              </div>
+            ))
+          ) : (
+            <p className="text-muted-foreground">No clarification requests yet.</p>
           )}
         </CardContent>
       </Card>

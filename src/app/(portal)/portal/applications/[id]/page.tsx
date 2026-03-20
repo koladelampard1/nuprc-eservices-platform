@@ -14,6 +14,7 @@ import { requirePortalUser } from "@/lib/portal-application";
 import { prisma } from "@/lib/prisma";
 
 import { uploadApplicationDocumentAction } from "./document-actions";
+import { respondToClarificationAction } from "./clarification-actions";
 import { submitDraftFromDetailAction } from "./submit-action";
 
 function getStateTone(state: string): "default" | "success" | "warning" | "danger" | "info" {
@@ -29,7 +30,14 @@ export default async function ApplicationDetailPage({
   searchParams
 }: {
   params: { id: string };
-  searchParams: { uploaded?: string; uploadError?: string; saved?: string; submitted?: string; submitError?: string };
+  searchParams: {
+    uploaded?: string;
+    uploadError?: string;
+    saved?: string;
+    submitted?: string;
+    submitError?: string;
+    clarificationResponded?: string;
+  };
 }) {
   const user = await requirePortalUser();
   const { id } = params;
@@ -42,6 +50,10 @@ export default async function ApplicationDetailPage({
       formEntries: true,
       documents: {
         orderBy: { uploadedAt: "desc" }
+      },
+      clarificationRequests: {
+        include: { requestedBy: true },
+        orderBy: { createdAt: "desc" }
       },
       serviceType: {
         include: {
@@ -75,6 +87,8 @@ export default async function ApplicationDetailPage({
   const canEditDraft = application.state === "DRAFT";
   const canSubmitApplication = canEditDraft && missingRequiredDocuments.length === 0;
   const submitAction = submitDraftFromDetailAction.bind(null, application.id);
+  const respondAction = respondToClarificationAction.bind(null, application.id);
+  const hasUnresolvedClarification = application.clarificationRequests.some((request) => !request.respondedAt);
 
   return (
     <section className="space-y-6">
@@ -95,6 +109,12 @@ export default async function ApplicationDetailPage({
       {searchParams.submitted === "true" ? (
         <p className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
           Application submitted successfully.
+        </p>
+      ) : null}
+
+      {searchParams.clarificationResponded === "true" ? (
+        <p className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          Clarification response submitted successfully.
         </p>
       ) : null}
 
@@ -129,6 +149,83 @@ export default async function ApplicationDetailPage({
               ? new Intl.DateTimeFormat("en-NG", { dateStyle: "medium", timeStyle: "short" }).format(application.submittedAt)
               : "Not submitted yet"}
           </p>
+        </CardContent>
+      </Card>
+
+      {application.state === "CLARIFICATION_REQUIRED" ? (
+        <p className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Clarification Required: Please review reviewer feedback below and provide your response.
+        </p>
+      ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Clarification Thread</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm">
+          {application.clarificationRequests.length ? (
+            application.clarificationRequests.map((request) => (
+              <div key={request.id} className="space-y-2 rounded-md border p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-medium text-slate-900">Reviewer: {request.requestedBy.fullName}</p>
+                  <StatusBadge
+                    label={request.respondedAt ? "Resolved" : "Unresolved"}
+                    tone={request.respondedAt ? "success" : "warning"}
+                  />
+                </div>
+                <p className="rounded-md bg-slate-50 px-3 py-2 text-slate-700">{request.message}</p>
+                <p className="text-xs text-muted-foreground">
+                  Requested: {new Intl.DateTimeFormat("en-NG", { dateStyle: "medium", timeStyle: "short" }).format(request.createdAt)}
+                </p>
+                {request.response ? (
+                  <div className="space-y-1 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2">
+                    <p className="font-medium text-emerald-900">Your Response</p>
+                    <p className="text-emerald-900">{request.response}</p>
+                    {request.respondedAt ? (
+                      <p className="text-xs text-emerald-800">
+                        Responded: {new Intl.DateTimeFormat("en-NG", { dateStyle: "medium", timeStyle: "short" }).format(request.respondedAt)}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ))
+          ) : (
+            <p className="text-muted-foreground">No clarification requests yet.</p>
+          )}
+
+          {application.state === "CLARIFICATION_REQUIRED" && hasUnresolvedClarification ? (
+            <form action={respondAction} className="space-y-3 rounded-lg border p-4">
+              <p className="text-sm font-medium">Respond to Clarification</p>
+              <textarea
+                name="response"
+                required
+                className="min-h-24 w-full rounded-md border border-border px-3 py-2 text-sm"
+                placeholder="Provide clarification response to the reviewer"
+              />
+              <div className="grid gap-2 md:grid-cols-2">
+                <select
+                  name="requirementId"
+                  defaultValue=""
+                  className="rounded-md border border-border px-3 py-2 text-sm"
+                >
+                  <option value="">Select requirement (optional when no file)</option>
+                  {application.serviceType.documentRequirements.map((requirement) => (
+                    <option key={requirement.id} value={requirement.id}>
+                      {requirement.name}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="file"
+                  name="document"
+                  accept=".pdf,.doc,.docx"
+                  className="block w-full rounded-md border border-border px-3 py-2 text-xs"
+                />
+              </div>
+              <Button type="submit" size="sm">Submit Clarification Response</Button>
+            </form>
+          ) : null}
         </CardContent>
       </Card>
 
