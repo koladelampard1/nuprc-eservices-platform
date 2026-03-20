@@ -10,6 +10,7 @@ import { requirePortalUser } from "@/lib/portal-application";
 import { prisma } from "@/lib/prisma";
 
 import { uploadApplicationDocumentAction } from "./document-actions";
+import { submitDraftFromDetailAction } from "./submit-action";
 
 function getStateTone(state: string): "default" | "success" | "warning" | "danger" | "info" {
   if (state === "APPROVED") return "success";
@@ -24,7 +25,7 @@ export default async function ApplicationDetailPage({
   searchParams
 }: {
   params: { id: string };
-  searchParams: { uploaded?: string; uploadError?: string };
+  searchParams: { uploaded?: string; uploadError?: string; saved?: string; submitted?: string; submitError?: string };
 }) {
   const user = await requirePortalUser();
   const { id } = params;
@@ -62,7 +63,8 @@ export default async function ApplicationDetailPage({
     (requirement) => latestUploadsByRequirement[requirement.id]
   ).length;
   const totalRequirements = application.serviceType.documentRequirements.length;
-  const isChecklistComplete = totalRequirements > 0 && uploadedRequirements === totalRequirements;
+  const isChecklistComplete = totalRequirements === 0 || uploadedRequirements === totalRequirements;
+  const submitAction = submitDraftFromDetailAction.bind(null, application.id);
 
   return (
     <section className="space-y-6">
@@ -74,9 +76,27 @@ export default async function ApplicationDetailPage({
         </p>
       ) : null}
 
+      {searchParams.saved === "draft" ? (
+        <p className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          Draft saved successfully.
+        </p>
+      ) : null}
+
+      {searchParams.submitted === "true" ? (
+        <p className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          Application submitted successfully.
+        </p>
+      ) : null}
+
       {searchParams.uploadError ? (
         <p className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
           {decodeURIComponent(searchParams.uploadError)}
+        </p>
+      ) : null}
+
+      {searchParams.submitError ? (
+        <p className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {decodeURIComponent(searchParams.submitError)}
         </p>
       ) : null}
 
@@ -137,6 +157,12 @@ export default async function ApplicationDetailPage({
           </p>
         </CardHeader>
         <CardContent className="space-y-4 text-sm">
+          {application.state === "DRAFT" && !isChecklistComplete ? (
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              Submission is blocked until all required documents are uploaded.
+            </p>
+          ) : null}
+
           {application.serviceType.documentRequirements.length ? (
             application.serviceType.documentRequirements.map((requirement) => {
               const latestUpload = latestUploadsByRequirement[requirement.id];
@@ -204,10 +230,15 @@ export default async function ApplicationDetailPage({
       </Card>
 
       {application.state === "DRAFT" ? (
-        <div>
+        <div className="flex flex-wrap gap-3">
           <Link href={`/portal/applications/${application.id}/edit`}>
             <Button>Edit Draft</Button>
           </Link>
+          {isChecklistComplete ? (
+            <form action={submitAction}>
+              <Button type="submit">Submit Application</Button>
+            </form>
+          ) : null}
         </div>
       ) : null}
     </section>

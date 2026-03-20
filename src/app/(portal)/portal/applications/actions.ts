@@ -9,16 +9,15 @@ export async function saveDraftAction(
   context: { serviceCode: string; applicationId?: string },
   formData: FormData
 ) {
+  let applicationId: string;
+
   try {
-    const applicationId = await persistApplication({
+    applicationId = await persistApplication({
       mode: "draft",
       serviceCode: context.serviceCode,
       applicationId: context.applicationId,
       formData
     });
-
-    revalidatePath("/portal/applications");
-    redirect(`/portal/applications/${applicationId}?saved=draft`);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to save draft right now.";
     const encodedMessage = encodeURIComponent(message);
@@ -29,22 +28,24 @@ export async function saveDraftAction(
 
     redirect(`/portal/applications/new?serviceCode=${context.serviceCode}&error=${encodedMessage}`);
   }
+
+  revalidatePath("/portal/applications");
+  redirect(`/portal/applications/${applicationId}?saved=draft`);
 }
 
 export async function submitApplicationAction(
   context: { serviceCode: string; applicationId?: string },
   formData: FormData
 ) {
+  let applicationId: string;
+
   try {
-    const applicationId = await persistApplication({
+    applicationId = await persistApplication({
       mode: "submit",
       serviceCode: context.serviceCode,
       applicationId: context.applicationId,
       formData
     });
-
-    revalidatePath("/portal/applications");
-    redirect(`/portal/applications/${applicationId}?submitted=true`);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to submit application right now.";
     const encodedMessage = encodeURIComponent(message);
@@ -59,4 +60,7 @@ export async function submitApplicationAction(
 
     redirect(`/portal/applications/new?serviceCode=${context.serviceCode}&error=${encodedMessage}`);
   }
+
+  revalidatePath("/portal/applications");
+  redirect(`/portal/applications/${applicationId}?submitted=true`);
 }
