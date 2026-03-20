@@ -1,0 +1,80 @@
+"use client";
+
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import type { ServiceField } from "@/lib/portal-application";
+
+type ApplicationFormProps = {
+  title: string;
+  description: string;
+  companyName: string;
+  companyRcNumber: string;
+  fields: ServiceField[];
+  initialValues?: Record<string, string>;
+  saveDraftAction: (formData: FormData) => void;
+  submitAction: (formData: FormData) => void;
+};
+
+export function ApplicationForm({
+  title,
+  description,
+  companyName,
+  companyRcNumber,
+  fields,
+  initialValues,
+  saveDraftAction,
+  submitAction
+}: ApplicationFormProps) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="rounded-lg border bg-slate-50 p-4 text-sm text-slate-700">
+          <p className="font-medium text-slate-900">Company Context</p>
+          <p>{companyName}</p>
+          <p>RC Number: {companyRcNumber}</p>
+        </div>
+
+        <form className="space-y-5">
+          {fields.map((field) => (
+            <label key={field.key} className="block space-y-2">
+              <span className="text-sm font-medium text-slate-900">
+                {field.label}
+                {field.required ? <span className="text-rose-600"> *</span> : null}
+              </span>
+              {field.type === "textarea" ? (
+                <textarea
+                  name={field.key}
+                  required={field.required}
+                  defaultValue={initialValues?.[field.key] ?? ""}
+                  rows={4}
+                  className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                />
+              ) : (
+                <Input
+                  name={field.key}
+                  type={field.type}
+                  required={field.required}
+                  defaultValue={initialValues?.[field.key] ?? ""}
+                />
+              )}
+            </label>
+          ))}
+
+          <div className="flex flex-wrap gap-3 pt-2">
+            <Button type="submit" formAction={saveDraftAction} variant="outline">
+              Save Draft
+            </Button>
+            <Button type="submit" formAction={submitAction}>
+              Submit Application
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
