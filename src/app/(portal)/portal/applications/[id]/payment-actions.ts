@@ -61,12 +61,12 @@ export async function generatePaymentReferenceAction(applicationId: string) {
       redirect(`/portal/applications/${applicationId}?payError=${encodeURIComponent("This service does not require payment.")}`);
     }
 
-    const activePendingReference = application.paymentReferences.find((item) => item.status === PaymentStatus.PENDING);
+    const existingReference = application.paymentReferences[0] ?? null;
 
-    if (activePendingReference) {
+    if (existingReference) {
       redirect(
         `/portal/applications/${applicationId}?payError=${encodeURIComponent(
-          `A pending payment reference already exists (${activePendingReference.referenceNo}).`
+          `A payment reference already exists (${existingReference.referenceNo}).`
         )}`
       );
     }
