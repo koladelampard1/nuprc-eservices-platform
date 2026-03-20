@@ -213,3 +213,47 @@ export async function persistApplication(params: {
 
   return applicationId;
 }
+
+export async function submitDraftApplication(applicationId: string) {
+  const user = await requirePortalUser();
+
+  const application = await prisma.application.findFirst({
+    where: {
+      id: applicationId,
+      companyId: user.companyId ?? ""
+    },
+    include: {
+      serviceType: {
+        select: { id: true }
+      }
+    }
+  });
+
+  if (!application) {
+    throw new Error("Application was not found for your account.");
+  }
+
+  if (application.state !== ApplicationState.DRAFT) {
+    throw new Error("Only draft applications can be submitted.");
+  }
+
+  const missingRequiredDocuments = await prisma.$transaction((tx) =>
+    getMissingRequiredDocuments(tx, application.id, application.serviceType.id)
+  );
+
+  if (missingRequiredDocuments.length) {
+    throw new SubmissionBlockedError(
+      `Missing required documents: ${missingRequiredDocuments.join(", ")}`,
+      application.id
+    );
+  }
+
+  await prisma.application.update({
+    where: { id: application.id },
+    data: {
+      state: ApplicationState.SUBMITTED,
+      submittedAt: new Date(),
+      currentStep: "Submitted"
+    }
+  });
+}
