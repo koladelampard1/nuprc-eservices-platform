@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { saveApplicationDocument } from "@/lib/application-document";
+import { createEmailSimulationLogs, createNotifications, getUsersByRoleCodes } from "@/lib/engagement";
 import { requirePortalUser } from "@/lib/portal-application";
 import { prisma } from "@/lib/prisma";
 import { isNextRedirectError } from "@/lib/server-action";
@@ -108,11 +109,57 @@ export async function respondToClarificationAction(applicationId: string, formDa
         comment: response
       }
     });
+
+    const workspaceUsers = await getUsersByRoleCodes(tx, ["REVIEW_OFFICER", "DIRECTOR"]);
+    const directorUsers = await getUsersByRoleCodes(tx, ["DIRECTOR"]);
+
+    await createNotifications(tx, [
+      {
+        userId: user.id,
+        applicationId: application.id,
+        type: "CLARIFICATION",
+        title: "Clarification Response Received",
+        message: `Your clarification response has been received for ${application.referenceNo}. Review has resumed.`
+      },
+      ...workspaceUsers.map((workspaceUser) => ({
+        userId: workspaceUser.id,
+        applicationId: application.id,
+        type: "CLARIFICATION" as const,
+        title: "Clarification Response Submitted",
+        message: `Operator response has been submitted for ${application.referenceNo}.`
+      })),
+      ...directorUsers.map((directorUser) => ({
+        userId: directorUser.id,
+        applicationId: application.id,
+        type: "APPLICATION_UPDATE" as const,
+        title: "Application Ready for Further Review",
+        message: `${application.referenceNo} is ready for additional review progression.`
+      }))
+    ]);
+
+    await createEmailSimulationLogs(tx, [
+      {
+        applicationId: application.id,
+        recipient: user.email,
+        subject: `Clarification received: ${application.referenceNo}`,
+        bodyPreview: "Your clarification response has been logged and the application has resumed review.",
+        eventType: "CLARIFICATION_RESPONSE_RECEIVED"
+      },
+      ...workspaceUsers.map((workspaceUser) => ({
+        applicationId: application.id,
+        recipient: workspaceUser.email,
+        subject: `Clarification response submitted: ${application.referenceNo}`,
+        bodyPreview: "An operator has responded to a clarification request. Please continue the review process.",
+        eventType: "CLARIFICATION_RESPONSE_SUBMITTED"
+      }))
+    ]);
   });
 
   revalidatePath(`/portal/applications/${applicationId}`);
   revalidatePath(`/workspace/queue/${applicationId}`);
   revalidatePath("/workspace/queue");
+  revalidatePath("/portal", "layout");
+  revalidatePath("/workspace", "layout");
 
   redirect(`/portal/applications/${applicationId}?clarificationResponded=true`);
 }

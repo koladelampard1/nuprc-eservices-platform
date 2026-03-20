@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { PortalLayout } from "@/components/layouts/portal-layout";
 import { auth } from "@/lib/auth";
 import { canAccessArea, getHomeRouteForRole } from "@/lib/permissions";
+import { prisma } from "@/lib/prisma";
 
 export default async function PortalRouteLayout({ children }: { children: ReactNode }) {
   const session = await auth();
@@ -17,5 +18,12 @@ export default async function PortalRouteLayout({ children }: { children: ReactN
     redirect(getHomeRouteForRole(roleCode));
   }
 
-  return <PortalLayout>{children}</PortalLayout>;
+  const unreadCount = await prisma.notification.count({
+    where: {
+      userId: session.user.id,
+      readAt: null
+    }
+  });
+
+  return <PortalLayout unreadCount={unreadCount}>{children}</PortalLayout>;
 }

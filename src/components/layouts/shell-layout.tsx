@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { AppHeader } from "@/components/app/app-header";
 import { AppSidebar } from "@/components/app/app-sidebar";
 
-type NavItem = { href: string; label: string };
+type NavItem = { href: string; label: string; badgeCount?: number };
 
 export function ShellLayout({
   sidebarTitle,

@@ -4,6 +4,7 @@ import { ApplicationState, DecisionType, ReviewActionType } from "@prisma/client
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { createEmailSimulationLogs, createNotifications } from "@/lib/engagement";
 import { prisma } from "@/lib/prisma";
 import { generateDecisionLetterReference } from "@/lib/letters";
 import { ensureDirector, requireWorkspaceUser } from "@/lib/workspace-review";
@@ -44,7 +45,14 @@ async function executeReviewAction(applicationId: string, actionType: Exclude<Re
 
   const application = await prisma.application.findUnique({
     where: { id: applicationId },
-    select: { id: true, state: true }
+    select: {
+      id: true,
+      state: true,
+      referenceNo: true,
+      submittedBy: {
+        select: { id: true, email: true }
+      }
+    }
   });
 
   if (!application || !actionableStates.includes(application.state)) {
@@ -117,12 +125,89 @@ async function executeReviewAction(applicationId: string, actionType: Exclude<Re
           }
         });
       }
+
+      await createNotifications(tx, [
+        {
+          userId: application.submittedBy.id,
+          applicationId: application.id,
+          type: "APPROVAL",
+          title: decisionType === "APPROVAL" ? "Application Approved" : "Application Rejected",
+          message:
+            decisionType === "APPROVAL"
+              ? `Your application ${application.referenceNo} has been approved.`
+              : `Your application ${application.referenceNo} has been rejected.`
+        },
+        {
+          userId: application.submittedBy.id,
+          applicationId: application.id,
+          type: "SYSTEM",
+          title: "Decision Letter Available",
+          message: `Decision letter is now available for ${application.referenceNo}.`
+        }
+      ]);
+
+      await createEmailSimulationLogs(tx, [
+        {
+          applicationId: application.id,
+          recipient: application.submittedBy.email,
+          subject:
+            decisionType === "APPROVAL"
+              ? `Application approved: ${application.referenceNo}`
+              : `Application rejected: ${application.referenceNo}`,
+          bodyPreview:
+            decisionType === "APPROVAL"
+              ? "Your application has been approved. You can now view the approval decision letter."
+              : "Your application has been rejected. You can now view the rejection decision letter.",
+          eventType: decisionType === "APPROVAL" ? "FINAL_APPROVAL" : "FINAL_REJECTION"
+        },
+        {
+          applicationId: application.id,
+          recipient: application.submittedBy.email,
+          subject: `Decision letter available: ${application.referenceNo}`,
+          bodyPreview: "A decision letter is now available in your portal application details page.",
+          eventType: "DECISION_LETTER_AVAILABLE"
+        }
+      ]);
+    }
+
+    if (actionType === "RECOMMENDED_APPROVAL" || actionType === "RECOMMENDED_REJECTION") {
+      const directors = await tx.user.findMany({
+        where: {
+          isActive: true,
+          role: { code: "DIRECTOR" }
+        },
+        select: { id: true, email: true }
+      });
+
+      await createNotifications(
+        tx,
+        directors.map((director) => ({
+          userId: director.id,
+          applicationId: application.id,
+          type: "APPLICATION_UPDATE",
+          title: "Application Ready for Final Decision",
+          message: `${application.referenceNo} has a reviewer recommendation and is ready for director decision.`
+        }))
+      );
+
+      await createEmailSimulationLogs(
+        tx,
+        directors.map((director) => ({
+          applicationId: application.id,
+          recipient: director.email,
+          subject: `Final decision required: ${application.referenceNo}`,
+          bodyPreview: "A reviewer recommendation has been recorded and awaits director final decision.",
+          eventType: "FINAL_DECISION_READY"
+        }))
+      );
     }
   });
 
   revalidatePath("/workspace/queue");
   revalidatePath(`/workspace/queue/${applicationId}`);
   revalidatePath(`/portal/applications/${applicationId}`);
+  revalidatePath("/portal", "layout");
+  revalidatePath("/workspace", "layout");
 
   redirect(`/workspace/queue/${applicationId}?success=${encodeURIComponent(config.successMessage)}`);
 }
@@ -147,7 +232,14 @@ export async function requestClarificationAction(applicationId: string, formData
   const user = await requireWorkspaceUser();
   const application = await prisma.application.findUnique({
     where: { id: applicationId },
-    select: { id: true, state: true }
+    select: {
+      id: true,
+      state: true,
+      referenceNo: true,
+      submittedBy: {
+        select: { id: true, email: true }
+      }
+    }
   });
 
   if (!application || !actionableStates.includes(application.state)) {
@@ -188,11 +280,33 @@ export async function requestClarificationAction(applicationId: string, formData
         }
       });
     }
+
+    await createNotifications(tx, [
+      {
+        userId: application.submittedBy.id,
+        applicationId: application.id,
+        type: "CLARIFICATION",
+        title: "Clarification Requested",
+        message: `A reviewer requested clarification for ${application.referenceNo}.`
+      }
+    ]);
+
+    await createEmailSimulationLogs(tx, [
+      {
+        applicationId: application.id,
+        recipient: application.submittedBy.email,
+        subject: `Clarification requested: ${application.referenceNo}`,
+        bodyPreview: "A reviewer requested clarification on your application. Open the portal to respond and upload updates if needed.",
+        eventType: "CLARIFICATION_REQUESTED"
+      }
+    ]);
   });
 
   revalidatePath("/workspace/queue");
   revalidatePath(`/workspace/queue/${applicationId}`);
   revalidatePath(`/portal/applications/${applicationId}`);
+  revalidatePath("/portal", "layout");
+  revalidatePath("/workspace", "layout");
 
   redirect(`/workspace/queue/${applicationId}?success=${encodeURIComponent("Clarification has been requested from the applicant.")}`);
 }
