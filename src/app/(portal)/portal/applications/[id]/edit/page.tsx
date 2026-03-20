@@ -7,7 +7,13 @@ import { prisma } from "@/lib/prisma";
 
 import { saveDraftAction, submitApplicationAction } from "../../actions";
 
-export default async function EditApplicationDraftPage({ params }: { params: { id: string } }) {
+export default async function EditApplicationDraftPage({
+  params,
+  searchParams
+}: {
+  params: { id: string };
+  searchParams: { error?: string };
+}) {
   const user = await requirePortalUser();
   const { id } = params;
 
@@ -37,7 +43,11 @@ export default async function EditApplicationDraftPage({ params }: { params: { i
       <PageHeader title={`Edit Draft ${application.referenceNo}`} description="Update your draft and submit when complete." />
       <ApplicationForm
         title={`${application.serviceType.name} Draft`}
-        description="Update the fields below and save draft or submit."
+        description={
+          searchParams.error
+            ? decodeURIComponent(searchParams.error)
+            : "Update the fields below and save draft or submit."
+        }
         companyName={user.company?.name ?? "-"}
         companyRcNumber={user.company?.rcNumber ?? "-"}
         fields={fields}

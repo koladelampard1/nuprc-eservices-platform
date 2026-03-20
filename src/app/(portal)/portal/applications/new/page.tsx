@@ -12,10 +12,10 @@ import { saveDraftAction, submitApplicationAction } from "../actions";
 export default async function NewApplicationPage({
   searchParams
 }: {
-  searchParams: { serviceCode?: string };
+  searchParams: { serviceCode?: string; error?: string };
 }) {
   const user = await requirePortalUser();
-  const { serviceCode } = searchParams;
+  const { serviceCode, error } = searchParams;
 
   if (!serviceCode) {
     return (
@@ -46,7 +46,7 @@ export default async function NewApplicationPage({
       />
       <ApplicationForm
         title="Application Form"
-        description="Complete the service-specific fields below."
+        description={error ? decodeURIComponent(error) : "Complete the service-specific fields below."}
         companyName={user.company?.name ?? "-"}
         companyRcNumber={user.company?.rcNumber ?? "-"}
         fields={fields}
