@@ -49,6 +49,7 @@ export function matchesRequirement(document: { storagePath: string; requirementI
     return document.requirementId === requirementId;
   }
 
+  // Backward compatibility for legacy uploads saved before requirementId existed.
   const normalized = document.storagePath.replace(/\\/g, "/");
   return normalized.includes(`/${requirementId}/`);
 }
