@@ -14,8 +14,28 @@ function formatAction(action: string) {
     .join(" ");
 }
 
-function formatEntity(entityType: string, entityId: string) {
-  return `${entityType.replaceAll("_", " ")} (${entityId})`;
+function formatEntity(entityType: string) {
+  return `${entityType.replaceAll("_", " ")}`;
+}
+
+function formatEventDetail(action: string, entityType: string, metadata: unknown) {
+  const formattedAction = formatAction(action);
+  const formattedEntity = formatEntity(entityType);
+
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return `${formattedAction} on ${formattedEntity.toLowerCase()}.`;
+  }
+
+  const entries = Object.entries(metadata as Record<string, unknown>)
+    .filter(([, value]) => typeof value === "string" || typeof value === "number" || typeof value === "boolean")
+    .slice(0, 3)
+    .map(([key, value]) => `${formatAction(key)}: ${String(value)}`);
+
+  if (!entries.length) {
+    return `${formattedAction} on ${formattedEntity.toLowerCase()}.`;
+  }
+
+  return `${formattedAction} on ${formattedEntity.toLowerCase()} • ${entries.join(" • ")}`;
 }
 
 export default async function AdminAuditPage({
@@ -46,7 +66,7 @@ export default async function AdminAuditPage({
 
   return (
     <section className="space-y-6">
-      <PageHeader title="Audit Log" description="Immutable governance event trail with actor, action, and affected entities." />
+      <PageHeader title="Audit Log" description="Immutable governance event trail with actor, action, entity, and event context." />
 
       <Card>
         <CardHeader className="space-y-4">
@@ -68,27 +88,32 @@ export default async function AdminAuditPage({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Timestamp</TableHead>
                 <TableHead>Actor</TableHead>
                 <TableHead>Action</TableHead>
                 <TableHead>Entity</TableHead>
+                <TableHead>Event</TableHead>
+                <TableHead>Timestamp</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {logs.length ? (
                 logs.map((log) => (
                   <TableRow key={log.id}>
-                    <TableCell>{new Intl.DateTimeFormat("en-NG", { dateStyle: "medium", timeStyle: "short" }).format(log.createdAt)}</TableCell>
                     <TableCell>{log.actor?.fullName ?? "System"}</TableCell>
                     <TableCell>
                       <StatusBadge tone="info" label={formatAction(log.action)} />
                     </TableCell>
-                    <TableCell>{formatEntity(log.entityType, log.entityId)}</TableCell>
+                    <TableCell>
+                      <p className="font-medium">{formatEntity(log.entityType)}</p>
+                      <p className="font-mono text-xs text-muted-foreground">{log.entityId}</p>
+                    </TableCell>
+                    <TableCell className="max-w-lg text-sm text-slate-700">{formatEventDetail(log.action, log.entityType, log.metadata)}</TableCell>
+                    <TableCell>{new Intl.DateTimeFormat("en-NG", { dateStyle: "medium", timeStyle: "short" }).format(log.createdAt)}</TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-muted-foreground">No audit entries matched the selected filters.</TableCell>
+                  <TableCell colSpan={5} className="text-muted-foreground">No audit entries matched the selected filters.</TableCell>
                 </TableRow>
               )}
             </TableBody>

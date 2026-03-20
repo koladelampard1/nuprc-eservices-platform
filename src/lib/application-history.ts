@@ -3,11 +3,12 @@ import { DecisionType, ReviewActionType } from "@prisma/client";
 import { deriveGeneratedAtFromReference } from "@/lib/payment";
 import { actionLabelMap } from "@/lib/workspace-review";
 
-type TimelineEvent = {
+export type TimelineEvent = {
   id: string;
   at: Date;
   title: string;
   detail: string;
+  tone?: "default" | "success" | "warning" | "danger" | "info";
 };
 
 type HistorySource = {
@@ -54,7 +55,8 @@ export function buildApplicationTimeline(history: HistorySource): TimelineEvent[
       id: "draft-created",
       at: history.createdAt,
       title: "Draft created",
-      detail: "Application draft initialized."
+      detail: "Application draft initialized.",
+      tone: "default"
     }
   ];
 
@@ -63,7 +65,8 @@ export function buildApplicationTimeline(history: HistorySource): TimelineEvent[
       id: "submitted",
       at: history.submittedAt,
       title: "Application submitted",
-      detail: "Application moved into the regulatory queue."
+      detail: "Application moved into the regulatory queue.",
+      tone: "info"
     });
   }
 
@@ -74,7 +77,8 @@ export function buildApplicationTimeline(history: HistorySource): TimelineEvent[
         id: `payment-generated-${reference.id}`,
         at: generatedAt,
         title: "Payment reference generated",
-        detail: `${reference.referenceNo} created (${reference.status}).`
+        detail: `${reference.referenceNo} created (${reference.status}).`,
+        tone: "info"
       });
     }
 
@@ -83,7 +87,8 @@ export function buildApplicationTimeline(history: HistorySource): TimelineEvent[
         id: `payment-paid-${reference.id}`,
         at: reference.paidAt,
         title: "Payment marked paid",
-        detail: `${reference.referenceNo} settled successfully.`
+        detail: `${reference.referenceNo} settled successfully.`,
+        tone: "success"
       });
     }
   });
@@ -93,7 +98,8 @@ export function buildApplicationTimeline(history: HistorySource): TimelineEvent[
       id: `wf-${transition.id}`,
       at: transition.transitionedAt,
       title: `Workflow update: ${transition.fromState} → ${transition.toState}`,
-      detail: `${transition.actor.fullName}${transition.comment ? ` • ${transition.comment}` : ""}`
+      detail: `${transition.actor.fullName}${transition.comment ? ` • ${transition.comment}` : ""}`,
+      tone: "default"
     });
 
     if (transition.toState === "IN_REVIEW") {
@@ -101,7 +107,8 @@ export function buildApplicationTimeline(history: HistorySource): TimelineEvent[
         id: `review-started-${transition.id}`,
         at: transition.transitionedAt,
         title: "Review started",
-        detail: `Review commenced by ${transition.actor.fullName}.`
+        detail: `Review commenced by ${transition.actor.fullName}.`,
+        tone: "info"
       });
     }
   });
@@ -115,7 +122,8 @@ export function buildApplicationTimeline(history: HistorySource): TimelineEvent[
       id: `review-action-${action.id}`,
       at: action.createdAt,
       title: actionLabelMap[action.actionType],
-      detail: `${action.reviewer.fullName}${action.note ? ` • ${action.note}` : ""}`
+      detail: `${action.reviewer.fullName}${action.note ? ` • ${action.note}` : ""}`,
+      tone: action.actionType.includes("REJECTION") ? "danger" : action.actionType.includes("APPROVAL") ? "success" : "info"
     });
   });
 
@@ -124,7 +132,8 @@ export function buildApplicationTimeline(history: HistorySource): TimelineEvent[
       id: `clarification-request-${request.id}`,
       at: request.createdAt,
       title: "Clarification requested",
-      detail: request.message
+      detail: request.message,
+      tone: "warning"
     });
 
     if (request.respondedAt) {
@@ -132,7 +141,8 @@ export function buildApplicationTimeline(history: HistorySource): TimelineEvent[
         id: `clarification-response-${request.id}`,
         at: request.respondedAt,
         title: "Clarification responded",
-        detail: "Operator response received."
+        detail: "Operator response received.",
+        tone: "success"
       });
     }
   });
@@ -142,16 +152,18 @@ export function buildApplicationTimeline(history: HistorySource): TimelineEvent[
       id: `decision-${letter.id}`,
       at: letter.issuedAt,
       title: letter.decisionType === "APPROVAL" ? "Final approval" : "Final rejection",
-      detail: `Decision letter issued (${letter.letterRef}).`
+      detail: `Decision letter issued (${letter.letterRef}).`,
+      tone: letter.decisionType === "APPROVAL" ? "success" : "danger"
     });
 
     events.push({
       id: `decision-letter-${letter.id}`,
       at: letter.issuedAt,
       title: "Decision letter available",
-      detail: `${letter.decisionType} letter published for download.`
+      detail: `${letter.decisionType} letter published for download.`,
+      tone: "info"
     });
   });
 
-  return events.sort((a, b) => b.at.getTime() - a.at.getTime());
+  return events.sort((a, b) => a.at.getTime() - b.at.getTime());
 }

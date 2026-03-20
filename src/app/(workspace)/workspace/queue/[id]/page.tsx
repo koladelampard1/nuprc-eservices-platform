@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { PageHeader } from "@/components/app/page-header";
 import { StatusBadge } from "@/components/app/status-badge";
+import { ApplicationTimeline } from "@/components/app/application-timeline";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -240,19 +241,10 @@ export default async function ReviewerApplicationDetailPage({
                         {new Intl.DateTimeFormat("en-NG", { dateStyle: "medium", timeStyle: "short" }).format(latestUpload.uploadedAt)}
                       </p>
                       <div className="flex flex-wrap gap-3">
-                        <Link
-                          href={`/api/workspace/applications/${application.id}/documents/${latestUpload.id}`}
-                          target="_blank"
-                          className="text-xs font-medium text-primary hover:underline"
-                        >
+                        <Link href={`/api/workspace/applications/${application.id}/documents/${latestUpload.id}`} target="_blank" className="text-xs font-medium text-primary hover:underline">
                           View latest file
                         </Link>
-                        <Link
-                          href={`/api/workspace/applications/${application.id}/documents/${latestUpload.id}`}
-                          target="_blank"
-                          className="text-xs font-medium text-primary hover:underline"
-                          download
-                        >
+                        <Link href={`/api/workspace/applications/${application.id}/documents/${latestUpload.id}?download=1`} target="_blank" className="text-xs font-medium text-primary hover:underline">
                           Download latest file
                         </Link>
                       </div>
@@ -260,15 +252,18 @@ export default async function ReviewerApplicationDetailPage({
                         <div className="rounded-md border bg-slate-50 p-3">
                           <p className="text-xs font-semibold text-slate-700">Previous versions ({requirementUploads.length - 1})</p>
                           <div className="mt-2 space-y-1">
-                            {requirementUploads.slice(1, 4).map((document) => (
-                              <Link
-                                key={document.id}
-                                href={`/api/workspace/applications/${application.id}/documents/${document.id}`}
-                                target="_blank"
-                                className="block text-xs text-primary hover:underline"
-                              >
-                                {document.fileName}
-                              </Link>
+                            {requirementUploads.slice(1, 6).map((document) => (
+                              <div key={document.id} className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                                <span className="text-slate-700">{document.fileName}</span>
+                                <span className="flex gap-3">
+                                  <Link href={`/api/workspace/applications/${application.id}/documents/${document.id}`} target="_blank" className="text-primary hover:underline">
+                                    View
+                                  </Link>
+                                  <Link href={`/api/workspace/applications/${application.id}/documents/${document.id}?download=1`} target="_blank" className="text-primary hover:underline">
+                                    Download
+                                  </Link>
+                                </span>
+                              </div>
                             ))}
                           </div>
                         </div>
@@ -436,19 +431,7 @@ export default async function ReviewerApplicationDetailPage({
           <CardTitle>Application Timeline / History</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
-          {timelineEvents.length ? (
-            timelineEvents.map((event) => (
-              <div key={event.id} className="rounded-md border p-3">
-                <p className="font-medium text-slate-900">{event.title}</p>
-                <p className="text-slate-700">{event.detail}</p>
-                <p className="text-xs text-muted-foreground">
-                  {new Intl.DateTimeFormat("en-NG", { dateStyle: "medium", timeStyle: "short" }).format(event.at)}
-                </p>
-              </div>
-            ))
-          ) : (
-            <p className="text-muted-foreground">No timeline history available.</p>
-          )}
+          <ApplicationTimeline events={timelineEvents} />
 
           <div className="pt-2">
             <p className="mb-2 text-sm font-medium">Review Action Log</p>

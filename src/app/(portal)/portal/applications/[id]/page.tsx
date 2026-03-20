@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { PageHeader } from "@/components/app/page-header";
 import { StatusBadge } from "@/components/app/status-badge";
+import { ApplicationTimeline } from "@/components/app/application-timeline";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { deriveGeneratedAtFromReference, formatNaira, getPaymentStatusTone, isPaymentRequired } from "@/lib/payment";
@@ -240,9 +241,14 @@ export default async function ApplicationDetailPage({
                   <div className="space-y-1">
                     <p className="font-medium text-slate-900">{requirement.name}</p>
                     <StatusBadge label={latestUpload ? "Uploaded" : "Missing"} tone={latestUpload ? "success" : "warning"} />
+                    {latestUpload ? <StatusBadge label="Latest Version" tone="info" /> : null}
                     <p className="text-slate-700">Latest file: {latestUpload ? latestUpload.fileName : "-"}</p>
-                    {latestUpload ? <Link href={`/api/portal/applications/${application.id}/documents/${latestUpload.id}`} className="inline-block text-xs text-primary hover:underline" target="_blank">View / Download latest file</Link> : null}
-                    {uploads.length > 1 ? <p className="text-xs text-muted-foreground">{uploads.length - 1} previous version(s) available.</p> : null}
+                    {latestUpload ? (
+                      <div className="flex flex-wrap gap-3">
+                        <Link href={`/api/portal/applications/${application.id}/documents/${latestUpload.id}`} className="inline-block text-xs text-primary hover:underline" target="_blank">View latest file</Link>
+                        <Link href={`/api/portal/applications/${application.id}/documents/${latestUpload.id}?download=1`} className="inline-block text-xs text-primary hover:underline" target="_blank">Download latest file</Link>
+                      </div>
+                    ) : null}
                   </div>
 
                   {application.state === "DRAFT" ? (
@@ -252,6 +258,24 @@ export default async function ApplicationDetailPage({
                     </form>
                   ) : null}
                 </div>
+                {uploads.length > 1 ? (
+                  <div className="mt-3 rounded-md border bg-slate-50 p-3">
+                    <p className="text-xs font-semibold text-slate-700">Previous versions</p>
+                    <div className="mt-2 space-y-2">
+                      {uploads.slice(1).map((document) => (
+                        <div key={document.id} className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                          <span className="text-slate-700">
+                            {document.fileName} • {new Intl.DateTimeFormat("en-NG", { dateStyle: "medium", timeStyle: "short" }).format(document.uploadedAt)}
+                          </span>
+                          <span className="flex gap-3">
+                            <Link href={`/api/portal/applications/${application.id}/documents/${document.id}`} target="_blank" className="text-primary hover:underline">View</Link>
+                            <Link href={`/api/portal/applications/${application.id}/documents/${document.id}?download=1`} target="_blank" className="text-primary hover:underline">Download</Link>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             );
           }) : <p className="text-muted-foreground">No required documents configured for this service.</p>}
@@ -261,13 +285,7 @@ export default async function ApplicationDetailPage({
       <Card>
         <CardHeader><CardTitle>Application Timeline / History</CardTitle></CardHeader>
         <CardContent className="space-y-3 text-sm">
-          {timelineEvents.length ? timelineEvents.map((event) => (
-            <div key={event.id} className="rounded-md border p-3">
-              <p className="font-medium text-slate-900">{event.title}</p>
-              <p className="text-slate-700">{event.detail}</p>
-              <p className="text-xs text-muted-foreground">{new Intl.DateTimeFormat("en-NG", { dateStyle: "medium", timeStyle: "short" }).format(event.at)}</p>
-            </div>
-          )) : <p className="text-muted-foreground">No timeline history available.</p>}
+          <ApplicationTimeline events={timelineEvents} />
         </CardContent>
       </Card>
 
