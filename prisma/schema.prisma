@@ -121,7 +121,7 @@ model ServiceDocumentRequirement {
   isRequired    Boolean               @default(true)
   sortOrder     Int                   @default(0)
   serviceType   ServiceType           @relation(fields: [serviceTypeId], references: [id])
-  documents     ApplicationDocument[]
+  documents     ApplicationDocument[] @relation("RequirementUploads")
 }
 
 model Application {
@@ -169,9 +169,10 @@ model ApplicationDocument {
   mimeType         String
   uploadedAt       DateTime                    @default(now())
   application      Application                 @relation(fields: [applicationId], references: [id])
-  requirement      ServiceDocumentRequirement? @relation(fields: [requirementId], references: [id])
+  requirement      ServiceDocumentRequirement? @relation("RequirementUploads", fields: [requirementId], references: [id], onDelete: SetNull)
   uploadedBy       User?                       @relation(fields: [uploadedByUserId], references: [id])
 
+  @@index([requirementId])
   @@index([applicationId, requirementId, uploadedAt])
 }
 
