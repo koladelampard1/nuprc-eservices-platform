@@ -58,7 +58,14 @@ export default async function WorkspaceQueuePage({
         serviceType: true,
         clarificationRequests: {
           where: { respondedAt: null },
-          select: { id: true }
+          select: { id: true, createdAt: true },
+          orderBy: { createdAt: "desc" },
+          take: 1
+        },
+        reviewActions: {
+          select: { createdAt: true },
+          orderBy: { createdAt: "desc" },
+          take: 1
         },
         paymentReferences: {
           orderBy: { referenceNo: "desc" },
@@ -123,6 +130,9 @@ export default async function WorkspaceQueuePage({
             </select>
             <Button type="submit" variant="outline">Apply</Button>
           </form>
+          <p className="text-xs text-muted-foreground">
+            SLA urgency is deterministic: <span className="font-medium">submitted/review timestamps for active reviews</span>, and latest clarification timestamp for clarification waits.
+          </p>
         </CardHeader>
         <CardContent>
           <Table>
@@ -144,7 +154,12 @@ export default async function WorkspaceQueuePage({
                   const latestPayment = item.paymentReferences[0] ?? null;
                   const paymentRequired = isPaymentRequired(item.serviceType.baseFeeNgn);
                   const hasPendingClarification = item.clarificationRequests.length > 0;
-                  const urgency = getQueueUrgency(item.state, item.submittedAt);
+                  const urgency = getQueueUrgency({
+                    state: item.state,
+                    submittedAt: item.submittedAt,
+                    lastReviewAt: item.reviewActions[0]?.createdAt ?? null,
+                    lastClarificationAt: item.clarificationRequests[0]?.createdAt ?? null
+                  });
 
                   return (
                     <TableRow
@@ -161,7 +176,7 @@ export default async function WorkspaceQueuePage({
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap items-center gap-2">
-                          <StatusBadge label={item.state} tone={stateToneMap[item.state]} />
+                          <StatusBadge label={item.state.replaceAll("_", " ")} tone={stateToneMap[item.state]} />
                           {hasPendingClarification ? <StatusBadge label="Clarification Required" tone="warning" /> : null}
                         </div>
                       </TableCell>

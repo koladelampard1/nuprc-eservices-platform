@@ -8,26 +8,40 @@ function getAgeInDays(from: Date, now: Date) {
   return Math.floor((now.getTime() - from.getTime()) / DAY_MS);
 }
 
-export function getQueueUrgency(state: ApplicationState, submittedAt: Date | null, now = new Date()): QueueUrgency {
-  if (!submittedAt) {
+export function getQueueUrgency(params: {
+  state: ApplicationState;
+  submittedAt: Date | null;
+  lastReviewAt?: Date | null;
+  lastClarificationAt?: Date | null;
+  now?: Date;
+}): QueueUrgency {
+  const now = params.now ?? new Date();
+
+  const baseline =
+    params.state === "CLARIFICATION_REQUIRED"
+      ? params.lastClarificationAt ?? params.lastReviewAt ?? params.submittedAt
+      : params.lastReviewAt ?? params.submittedAt;
+
+  if (!baseline) {
     return "NEW";
   }
 
-  const ageInDays = getAgeInDays(submittedAt, now);
+  const ageInDays = getAgeInDays(baseline, now);
 
-  if (state === "SUBMITTED") {
+  if (params.state === "SUBMITTED") {
     if (ageInDays <= 2) return "NEW";
     if (ageInDays <= 5) return "DUE_SOON";
     return "OVERDUE";
   }
 
-  if (state === "CLARIFICATION_REQUIRED") {
+  if (params.state === "CLARIFICATION_REQUIRED") {
+    if (ageInDays <= 1) return "NEW";
     if (ageInDays <= 3) return "DUE_SOON";
     return "OVERDUE";
   }
 
-  if (ageInDays <= 4) return "NEW";
-  if (ageInDays <= 8) return "DUE_SOON";
+  if (ageInDays <= 3) return "NEW";
+  if (ageInDays <= 7) return "DUE_SOON";
   return "OVERDUE";
 }
 

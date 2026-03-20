@@ -9,7 +9,7 @@ import { requireWorkspaceUser } from "@/lib/workspace-review";
 export const runtime = "nodejs";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: { id: string; documentId: string } }
 ) {
   await requireWorkspaceUser();
@@ -30,10 +30,12 @@ export async function GET(
   try {
     const fileBuffer = await readFile(absolutePath);
 
+    const disposition = new URL(request.url).searchParams.get("download") === "1" ? "attachment" : "inline";
+
     return new NextResponse(fileBuffer, {
       headers: {
         "Content-Type": document.mimeType || "application/octet-stream",
-        "Content-Disposition": `inline; filename="${encodeURIComponent(document.fileName)}"`
+        "Content-Disposition": `${disposition}; filename="${encodeURIComponent(document.fileName)}"`
       }
     });
   } catch {
