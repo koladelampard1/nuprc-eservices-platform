@@ -1,6 +1,6 @@
 "use server";
 
-import { PaymentStatus } from "@prisma/client";
+import { PaymentStatus, Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -9,20 +9,52 @@ import { requirePortalUser } from "@/lib/portal-application";
 import { prisma } from "@/lib/prisma";
 import { isNextRedirectError } from "@/lib/server-action";
 
-function buildPaymentReferenceNo(serial: number, at: Date) {
+const PAYMENT_REFERENCE_MAX_ATTEMPTS = 5;
+
+function buildPaymentReferenceNo(at: Date, attempt = 0) {
   const yyyy = at.getUTCFullYear();
   const mm = String(at.getUTCMonth() + 1).padStart(2, "0");
   const dd = String(at.getUTCDate()).padStart(2, "0");
-  return `NUPRC-PAY-${yyyy}${mm}${dd}-${String(serial).padStart(4, "0")}`;
+  const hh = String(at.getUTCHours()).padStart(2, "0");
+  const min = String(at.getUTCMinutes()).padStart(2, "0");
+  const ss = String(at.getUTCSeconds()).padStart(2, "0");
+  const ms = String(at.getUTCMilliseconds()).padStart(3, "0");
+  const suffix = String(attempt).padStart(2, "0");
+  return `NUPRC-PAY-${yyyy}${mm}${dd}-${hh}${min}${ss}${ms}-${suffix}`;
 }
 
-async function getNextPaymentSerial() {
-  const latest = await prisma.paymentReference.findFirst({
-    orderBy: { referenceNo: "desc" },
-    select: { referenceNo: true }
-  });
-  const current = Number(latest?.referenceNo.match(/-(\d{4})$/)?.[1] ?? 0);
-  return current + 1;
+function toLogPayload(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    };
+  }
+
+  return { error };
+}
+
+function getUserFacingPaymentError(error: unknown) {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === "P2002") {
+      return "A duplicate payment reference was detected. Please try again.";
+    }
+
+    if (error.code === "P2003") {
+      return "Unable to link payment reference to this application.";
+    }
+
+    if (error.code === "P2022") {
+      return "Payment reference data model is out of sync. Run Prisma generate/migrations and retry.";
+    }
+  }
+
+  if (error instanceof Prisma.PrismaClientValidationError) {
+    return "Invalid payment reference payload. Check required payment fields and amount format.";
+  }
+
+  return "Unable to generate payment reference.";
 }
 
 async function getOwnedApplication(applicationId: string) {
@@ -54,8 +86,16 @@ async function getOwnedApplication(applicationId: string) {
 
 export async function generatePaymentReferenceAction(applicationId: string) {
   try {
+    console.info("[payment-reference] start", { applicationId });
     const application = await getOwnedApplication(applicationId);
+    console.info("[payment-reference] application-loaded", {
+      applicationId,
+      state: application.state,
+      baseFeeNgn: application.serviceType.baseFeeNgn.toString(),
+      existingReferenceCount: application.paymentReferences.length
+    });
     const requiresPayment = isPaymentRequired(application.serviceType.baseFeeNgn);
+    console.info("[payment-reference] payment-requirement-evaluated", { applicationId, requiresPayment });
 
     if (!requiresPayment) {
       redirect(`/portal/applications/${applicationId}?payError=${encodeURIComponent("This service does not require payment.")}`);
@@ -64,6 +104,10 @@ export async function generatePaymentReferenceAction(applicationId: string) {
     const existingReference = application.paymentReferences[0] ?? null;
 
     if (existingReference) {
+      console.info("[payment-reference] existing-reference-blocked", {
+        applicationId,
+        referenceNo: existingReference.referenceNo
+      });
       redirect(
         `/portal/applications/${applicationId}?payError=${encodeURIComponent(
           `A payment reference already exists (${existingReference.referenceNo}).`
@@ -71,22 +115,60 @@ export async function generatePaymentReferenceAction(applicationId: string) {
       );
     }
 
-    const serial = await getNextPaymentSerial();
-    const now = new Date();
+    let createdReferenceNo = "";
 
-    await prisma.paymentReference.create({
-      data: {
+    for (let attempt = 0; attempt < PAYMENT_REFERENCE_MAX_ATTEMPTS; attempt += 1) {
+      const now = new Date();
+      const referenceNo = buildPaymentReferenceNo(now, attempt);
+
+      console.info("[payment-reference] create-attempt", {
         applicationId,
-        referenceNo: buildPaymentReferenceNo(serial, now),
-        amountNgn: application.serviceType.baseFeeNgn,
-        status: PaymentStatus.PENDING
+        attempt,
+        referenceNo,
+        amountNgn: application.serviceType.baseFeeNgn.toString()
+      });
+
+      try {
+        await prisma.paymentReference.create({
+          data: {
+            applicationId,
+            referenceNo,
+            amountNgn: application.serviceType.baseFeeNgn,
+            status: PaymentStatus.PENDING
+          }
+        });
+
+        createdReferenceNo = referenceNo;
+        console.info("[payment-reference] create-success", { applicationId, referenceNo });
+        break;
+      } catch (createError) {
+        if (createError instanceof Prisma.PrismaClientKnownRequestError && createError.code === "P2002") {
+          console.warn("[payment-reference] duplicate-reference-collision", {
+            applicationId,
+            attempt,
+            referenceNo
+          });
+          continue;
+        }
+
+        throw createError;
       }
-    });
+    }
+
+    if (!createdReferenceNo) {
+      throw new Error("Failed to generate a unique payment reference after multiple attempts.");
+    }
   } catch (error) {
     if (isNextRedirectError(error)) {
       throw error;
     }
-    redirect(`/portal/applications/${applicationId}?payError=${encodeURIComponent("Unable to generate payment reference.")}`);
+
+    console.error("[payment-reference] generate-failed", {
+      applicationId,
+      ...toLogPayload(error)
+    });
+
+    redirect(`/portal/applications/${applicationId}?payError=${encodeURIComponent(getUserFacingPaymentError(error))}`);
   }
 
   revalidatePath(`/portal/applications/${applicationId}`);
