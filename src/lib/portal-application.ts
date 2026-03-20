@@ -1,10 +1,11 @@
-import { ApplicationState, Prisma } from "@prisma/client";
+import { ApplicationState, PaymentStatus, Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
 import { auth } from "@/lib/auth";
 import { getMissingRequiredDocuments } from "@/lib/application-document";
 import { createEmailSimulationLogs, createNotifications, getUsersByRoleCodes } from "@/lib/engagement";
 import { canAccessArea } from "@/lib/permissions";
+import { isPaymentRequired } from "@/lib/payment";
 import { prisma } from "@/lib/prisma";
 
 export type ServiceField = {
@@ -203,6 +204,21 @@ export async function persistApplication(params: {
       );
     }
 
+    if (isPaymentRequired(serviceType.baseFeeNgn)) {
+      const latestPaymentReference = await prisma.paymentReference.findFirst({
+        where: { applicationId },
+        orderBy: { referenceNo: "desc" },
+        select: { status: true }
+      });
+
+      if (!latestPaymentReference || latestPaymentReference.status !== PaymentStatus.PAID) {
+        throw new SubmissionBlockedError(
+          "Payment is required before final submission. Generate a payment reference and complete the demo payment step.",
+          applicationId
+        );
+      }
+    }
+
     await prisma.$transaction(async (tx) => {
       const submitted = await tx.application.update({
         where: { id: applicationId },
@@ -286,7 +302,7 @@ export async function submitDraftApplication(applicationId: string) {
     },
     include: {
       serviceType: {
-        select: { id: true }
+        select: { id: true, baseFeeNgn: true }
       }
     }
   });
@@ -308,6 +324,21 @@ export async function submitDraftApplication(applicationId: string) {
       `Missing required documents: ${missingRequiredDocuments.join(", ")}`,
       application.id
     );
+  }
+
+  if (isPaymentRequired(application.serviceType.baseFeeNgn)) {
+    const latestPaymentReference = await prisma.paymentReference.findFirst({
+      where: { applicationId: application.id },
+      orderBy: { referenceNo: "desc" },
+      select: { status: true }
+    });
+
+    if (!latestPaymentReference || latestPaymentReference.status !== PaymentStatus.PAID) {
+      throw new SubmissionBlockedError(
+        "Payment is required before final submission. Generate a payment reference and complete the demo payment step.",
+        application.id
+      );
+    }
   }
 
   await prisma.$transaction(async (tx) => {

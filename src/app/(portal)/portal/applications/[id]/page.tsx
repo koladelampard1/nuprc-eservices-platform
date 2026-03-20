@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { StatusBadge } from "@/components/app/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { deriveGeneratedAtFromReference, formatNaira, getPaymentStatusTone, isPaymentRequired } from "@/lib/payment";
 import {
   DOCUMENT_UPLOAD_POLICY,
   computeLatestUploadsByRequirement,
@@ -15,6 +16,7 @@ import { prisma } from "@/lib/prisma";
 
 import { uploadApplicationDocumentAction } from "./document-actions";
 import { respondToClarificationAction } from "./clarification-actions";
+import { generatePaymentReferenceAction, markPaymentStatusAction } from "./payment-actions";
 import { submitDraftFromDetailAction } from "./submit-action";
 
 function getStateTone(state: string): "default" | "success" | "warning" | "danger" | "info" {
@@ -30,14 +32,18 @@ export default async function ApplicationDetailPage({
   searchParams
 }: {
   params: { id: string };
-  searchParams: {
+    searchParams: {
     uploaded?: string;
     uploadError?: string;
     saved?: string;
     submitted?: string;
     submitError?: string;
-    clarificationResponded?: string;
-  };
+      clarificationResponded?: string;
+      paymentGenerated?: string;
+      paymentPaid?: string;
+      paymentFailed?: string;
+      payError?: string;
+    };
 }) {
   const user = await requirePortalUser();
   const { id } = params;
@@ -67,6 +73,9 @@ export default async function ApplicationDetailPage({
             orderBy: { sortOrder: "asc" }
           }
         }
+      },
+      paymentReferences: {
+        orderBy: { referenceNo: "desc" }
       }
     }
   });
@@ -90,8 +99,14 @@ export default async function ApplicationDetailPage({
   const totalRequirements = application.serviceType.documentRequirements.length;
   const isChecklistComplete = totalRequirements === 0 || uploadedRequirements === totalRequirements;
   const canEditDraft = application.state === "DRAFT";
-  const canSubmitApplication = canEditDraft && missingRequiredDocuments.length === 0;
+  const paymentRequired = isPaymentRequired(application.serviceType.baseFeeNgn);
+  const latestPaymentReference = application.paymentReferences[0] ?? null;
+  const isPaymentComplete = !paymentRequired || latestPaymentReference?.status === "PAID";
+  const canSubmitApplication = canEditDraft && missingRequiredDocuments.length === 0 && isPaymentComplete;
   const submitAction = submitDraftFromDetailAction.bind(null, application.id);
+  const generatePaymentAction = generatePaymentReferenceAction.bind(null, application.id);
+  const markPaidAction = markPaymentStatusAction.bind(null, application.id, "PAID");
+  const markFailedAction = markPaymentStatusAction.bind(null, application.id, "FAILED");
   const respondAction = respondToClarificationAction.bind(null, application.id);
   const hasUnresolvedClarification = application.clarificationRequests.some((request) => !request.respondedAt);
 
@@ -127,6 +142,24 @@ export default async function ApplicationDetailPage({
         </p>
       ) : null}
 
+      {searchParams.paymentGenerated === "true" ? (
+        <p className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          Demo payment reference generated successfully.
+        </p>
+      ) : null}
+
+      {searchParams.paymentPaid === "true" ? (
+        <p className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          Demo payment marked as PAID successfully. You can now submit this draft.
+        </p>
+      ) : null}
+
+      {searchParams.paymentFailed === "true" ? (
+        <p className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Demo payment marked as FAILED.
+        </p>
+      ) : null}
+
       {searchParams.uploadError ? (
         <p className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
           {decodeURIComponent(searchParams.uploadError)}
@@ -136,6 +169,12 @@ export default async function ApplicationDetailPage({
       {searchParams.submitError ? (
         <p className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
           {decodeURIComponent(searchParams.submitError)}
+        </p>
+      ) : null}
+
+      {searchParams.payError ? (
+        <p className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {decodeURIComponent(searchParams.payError)}
         </p>
       ) : null}
 
@@ -167,6 +206,75 @@ export default async function ApplicationDetailPage({
         </p>
       ) : null}
 
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Payment</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm">
+          <div className="grid gap-3 md:grid-cols-2">
+            <p><span className="font-medium">Service Fee:</span> {formatNaira(application.serviceType.baseFeeNgn)}</p>
+            <p>
+              <span className="font-medium">Payment Required:</span>{" "}
+              <StatusBadge label={paymentRequired ? "Yes" : "No"} tone={paymentRequired ? "warning" : "success"} />
+            </p>
+            <p><span className="font-medium">Reference:</span> {latestPaymentReference?.referenceNo ?? "Not generated yet"}</p>
+            <p>
+              <span className="font-medium">Status:</span>{" "}
+              <StatusBadge
+                label={latestPaymentReference?.status ?? (paymentRequired ? "NOT_STARTED" : "NOT_REQUIRED")}
+                tone={latestPaymentReference ? getPaymentStatusTone(latestPaymentReference.status) : paymentRequired ? "default" : "success"}
+              />
+            </p>
+            <p>
+              <span className="font-medium">Generated Date:</span>{" "}
+              {latestPaymentReference
+                ? (() => {
+                    const generatedAt = deriveGeneratedAtFromReference(latestPaymentReference.referenceNo);
+                    return generatedAt
+                      ? new Intl.DateTimeFormat("en-NG", { dateStyle: "medium" }).format(generatedAt)
+                      : "Derived date unavailable";
+                  })()
+                : "-"}
+            </p>
+            <p>
+              <span className="font-medium">Paid Date:</span>{" "}
+              {latestPaymentReference?.paidAt
+                ? new Intl.DateTimeFormat("en-NG", { dateStyle: "medium", timeStyle: "short" }).format(latestPaymentReference.paidAt)
+                : "-"}
+            </p>
+          </div>
+
+          {paymentRequired && !isPaymentComplete ? (
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              Payment is required for this service. Complete the demo payment step before final submission.
+            </p>
+          ) : null}
+
+          {canEditDraft && paymentRequired ? (
+            <div className="flex flex-wrap gap-3">
+              {!latestPaymentReference ? (
+                <form action={generatePaymentAction}>
+                  <Button type="submit" variant="outline">Generate Payment Reference</Button>
+                </form>
+              ) : null}
+
+              {latestPaymentReference && latestPaymentReference.status !== "PAID" ? (
+                <>
+                  <form action={markPaidAction}>
+                    <Button type="submit">Mark as Paid (Demo)</Button>
+                  </form>
+                  <form action={markFailedAction}>
+                    <Button type="submit" variant="outline" className="border-amber-300 text-amber-800 hover:bg-amber-50">
+                      Mark as Failed (Demo)
+                    </Button>
+                  </form>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -384,7 +492,11 @@ export default async function ApplicationDetailPage({
             <form action={submitAction}>
               <Button type="submit">Submit Application</Button>
             </form>
-          ) : null}
+          ) : (
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+              Final submission is available after all required documents are uploaded and payment is completed where applicable.
+            </p>
+          )}
         </div>
       ) : null}
     </section>

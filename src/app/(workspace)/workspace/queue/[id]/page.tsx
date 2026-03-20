@@ -11,6 +11,7 @@ import {
 } from "@/lib/application-document";
 import { prisma } from "@/lib/prisma";
 import { actionLabelMap, canTransitionToFinalState, requireWorkspaceUser, stateToneMap } from "@/lib/workspace-review";
+import { deriveGeneratedAtFromReference, formatNaira, getPaymentStatusTone, isPaymentRequired } from "@/lib/payment";
 
 import {
   addCommentAction,
@@ -52,6 +53,9 @@ export default async function ReviewerApplicationDetailPage({
           }
         }
       },
+      paymentReferences: {
+        orderBy: { referenceNo: "desc" }
+      },
       formEntries: true,
       documents: {
         orderBy: { uploadedAt: "desc" }
@@ -90,6 +94,8 @@ export default async function ReviewerApplicationDetailPage({
   ).length;
   const totalRequirements = application.serviceType.documentRequirements.length;
   const canReview = ["SUBMITTED", "IN_REVIEW", "CLARIFICATION_REQUIRED"].includes(application.state);
+  const paymentRequired = isPaymentRequired(application.serviceType.baseFeeNgn);
+  const latestPaymentReference = application.paymentReferences[0] ?? null;
 
   const hasAcknowledgementLetter = application.state !== "DRAFT";
   const approvalLetter = application.decisionLetters.find((letter) => letter.decisionType === "APPROVAL");
@@ -138,6 +144,42 @@ export default async function ReviewerApplicationDetailPage({
             <span className="font-medium">Submission Date:</span>{" "}
             {application.submittedAt
               ? new Intl.DateTimeFormat("en-NG", { dateStyle: "medium", timeStyle: "short" }).format(application.submittedAt)
+              : "-"}
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Payment Overview</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3 text-sm md:grid-cols-2">
+          <p><span className="font-medium">Service Fee:</span> {formatNaira(application.serviceType.baseFeeNgn)}</p>
+          <p>
+            <span className="font-medium">Payment Required:</span>{" "}
+            <StatusBadge label={paymentRequired ? "Yes" : "No"} tone={paymentRequired ? "warning" : "success"} />
+          </p>
+          <p><span className="font-medium">Reference:</span> {latestPaymentReference?.referenceNo ?? "-"}</p>
+          <p>
+            <span className="font-medium">Payment Status:</span>{" "}
+            <StatusBadge
+              label={latestPaymentReference?.status ?? (paymentRequired ? "NOT_STARTED" : "NOT_REQUIRED")}
+              tone={latestPaymentReference ? getPaymentStatusTone(latestPaymentReference.status) : paymentRequired ? "default" : "success"}
+            />
+          </p>
+          <p>
+            <span className="font-medium">Generated Date:</span>{" "}
+            {latestPaymentReference
+              ? (() => {
+                  const generatedAt = deriveGeneratedAtFromReference(latestPaymentReference.referenceNo);
+                  return generatedAt ? new Intl.DateTimeFormat("en-NG", { dateStyle: "medium" }).format(generatedAt) : "-";
+                })()
+              : "-"}
+          </p>
+          <p>
+            <span className="font-medium">Paid Date:</span>{" "}
+            {latestPaymentReference?.paidAt
+              ? new Intl.DateTimeFormat("en-NG", { dateStyle: "medium", timeStyle: "short" }).format(latestPaymentReference.paidAt)
               : "-"}
           </p>
         </CardContent>
