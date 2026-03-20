@@ -1,6 +1,7 @@
 import { ApplicationState, Prisma } from "@prisma/client";
 
 import { auth } from "@/lib/auth";
+import { getMissingRequiredDocuments } from "@/lib/application-document";
 import { canAccessArea } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
@@ -127,6 +128,13 @@ export async function persistApplication(params: {
         throw new Error("Only draft applications can be edited.");
       }
 
+      if (params.mode === "submit") {
+        const missingRequiredDocuments = await getMissingRequiredDocuments(tx, existing.id, existing.serviceTypeId);
+        if (missingRequiredDocuments.length) {
+          throw new Error(`Missing required documents: ${missingRequiredDocuments.join(", ")}`);
+        }
+      }
+
       await tx.application.update({
         where: { id: existing.id },
         data: {
@@ -136,6 +144,10 @@ export async function persistApplication(params: {
         }
       });
     } else {
+      if (params.mode === "submit") {
+        throw new Error("Please save as draft first and upload all required documents before submission.");
+      }
+
       const referenceNo = await generateReferenceNo(tx);
       const created = await tx.application.create({
         data: {
@@ -143,9 +155,9 @@ export async function persistApplication(params: {
           companyId: user.companyId ?? "",
           serviceTypeId: serviceType.id,
           submittedById: user.id,
-          state: params.mode === "submit" ? ApplicationState.SUBMITTED : ApplicationState.DRAFT,
-          submittedAt: params.mode === "submit" ? new Date() : null,
-          currentStep: params.mode === "submit" ? "Submitted" : "Draft"
+          state: ApplicationState.DRAFT,
+          submittedAt: null,
+          currentStep: "Draft"
         }
       });
       applicationId = created.id;
