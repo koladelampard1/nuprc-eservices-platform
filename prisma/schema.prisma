@@ -56,6 +56,14 @@ enum DecisionType {
   CONDITIONAL_APPROVAL
 }
 
+enum ServiceFormFieldType {
+  TEXT
+  TEXTAREA
+  DATE
+  NUMBER
+  SELECT
+}
+
 model Role {
   id          String       @id @default(cuid())
   code        UserRoleCode @unique
@@ -107,10 +115,30 @@ model ServiceType {
   description          String
   baseFeeNgn           Decimal                      @db.Decimal(12, 2)
   isActive             Boolean                      @default(true)
+  formFields           ServiceFormField[]
   documentRequirements ServiceDocumentRequirement[]
   applications         Application[]
   createdAt            DateTime                     @default(now())
   updatedAt            DateTime                     @updatedAt
+}
+
+model ServiceFormField {
+  id            String               @id @default(cuid())
+  serviceTypeId String
+  fieldKey      String
+  fieldLabel    String
+  fieldType     ServiceFormFieldType @default(TEXT)
+  isRequired    Boolean              @default(false)
+  placeholder   String?
+  helpText      String?
+  selectOptions String?
+  sortOrder     Int                  @default(0)
+  serviceType   ServiceType          @relation(fields: [serviceTypeId], references: [id])
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  @@unique([serviceTypeId, fieldKey])
+  @@index([serviceTypeId, sortOrder])
 }
 
 model ServiceDocumentRequirement {

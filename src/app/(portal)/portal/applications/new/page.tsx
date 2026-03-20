@@ -34,7 +34,7 @@ export default async function NewApplicationPage({
     notFound();
   }
 
-  const fields = getServiceFields(service.code);
+  const fields = await getServiceFields(service.code);
   const saveDraft = saveDraftAction.bind(null, { serviceCode: service.code });
   const submit = submitApplicationAction.bind(null, { serviceCode: service.code });
 

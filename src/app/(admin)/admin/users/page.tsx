@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { requireAdminUser } from "@/lib/admin-console";
 import { prisma } from "@/lib/prisma";
 
-import { toggleUserActiveAction, updateUserRoleAction } from "./actions";
+import { createUserAction, updateUserAssignmentAction } from "./actions";
 
 function safeText(value?: string) {
   if (!value) return null;
@@ -77,6 +77,44 @@ export default async function AdminUsersPage({
       ) : null}
 
       <Card>
+        <CardHeader>
+          <CardTitle>Create User</CardTitle>
+          <CardDescription>Create a new account and assign role/company access in one step.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form action={createUserAction} className="grid gap-3 md:grid-cols-3">
+            <Input name="fullName" placeholder="Full name" required />
+            <Input name="email" type="email" placeholder="Email" required />
+            <Input name="password" type="password" placeholder="Temporary password" required />
+            <select name="roleCode" defaultValue="EXTERNAL_OPERATOR" className="rounded-md border border-border bg-background px-3 py-2 text-sm">
+              {roleOptions
+                .filter((role) => admin.roleCode === "SUPER_ADMIN" || role.code !== "SUPER_ADMIN")
+                .map((role) => (
+                  <option key={role.id} value={role.code}>
+                    {role.name}
+                  </option>
+                ))}
+            </select>
+            <select name="companyId" defaultValue="" className="rounded-md border border-border bg-background px-3 py-2 text-sm">
+              <option value="">No company assignment</option>
+              {companies.map((company) => (
+                <option key={company.id} value={company.id}>
+                  {company.name}
+                </option>
+              ))}
+            </select>
+            <label className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-slate-700">
+              <input type="checkbox" name="isActive" defaultChecked className="h-4 w-4 rounded border-border" />
+              Active account
+            </label>
+            <div className="md:col-span-3">
+              <Button type="submit">Create User</Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader className="space-y-4">
           <CardTitle>User Directory</CardTitle>
           <CardDescription>Filter by person, email, role, company, and account state.</CardDescription>
@@ -139,14 +177,7 @@ export default async function AdminUsersPage({
                       </TableCell>
                       <TableCell>
                         <div className="space-y-2">
-                          <form action={toggleUserActiveAction} className="flex items-center gap-2">
-                            <input type="hidden" name="userId" value={user.id} />
-                            <Button size="sm" variant="outline" disabled={!canToggleState}>
-                              {user.isActive ? "Deactivate" : "Activate"}
-                            </Button>
-                          </form>
-
-                          <form action={updateUserRoleAction} className="flex items-center gap-2">
+                          <form action={updateUserAssignmentAction} className="grid gap-2 rounded-md border border-border p-2">
                             <input type="hidden" name="userId" value={user.id} />
                             <select
                               name="roleCode"
@@ -162,7 +193,30 @@ export default async function AdminUsersPage({
                                   </option>
                                 ))}
                             </select>
-                            <Button size="sm" disabled={!canManageRole}>Save Role</Button>
+                            <select
+                              name="companyId"
+                              defaultValue={user.companyId ?? ""}
+                              className="rounded-md border border-border bg-background px-2 py-1 text-sm"
+                              disabled={!canManageRole}
+                            >
+                              <option value="">No company assignment</option>
+                              {companies.map((company) => (
+                                <option key={company.id} value={company.id}>
+                                  {company.name}
+                                </option>
+                              ))}
+                            </select>
+                            <label className="flex items-center gap-2 text-xs text-slate-700">
+                              <input
+                                type="checkbox"
+                                name="isActive"
+                                defaultChecked={user.isActive}
+                                className="h-4 w-4 rounded border-border"
+                                disabled={!canToggleState}
+                              />
+                              Active
+                            </label>
+                            <Button size="sm" disabled={!canManageRole && !canToggleState}>Save</Button>
                           </form>
                         </div>
                       </TableCell>
