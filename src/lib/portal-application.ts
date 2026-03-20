@@ -1,7 +1,9 @@
 import { ApplicationState, Prisma } from "@prisma/client";
+import { revalidatePath } from "next/cache";
 
 import { auth } from "@/lib/auth";
 import { getMissingRequiredDocuments } from "@/lib/application-document";
+import { createEmailSimulationLogs, createNotifications, getUsersByRoleCodes } from "@/lib/engagement";
 import { canAccessArea } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
@@ -201,14 +203,74 @@ export async function persistApplication(params: {
       );
     }
 
-    await prisma.application.update({
-      where: { id: applicationId },
-      data: {
-        state: ApplicationState.SUBMITTED,
-        submittedAt: new Date(),
-        currentStep: "Submitted"
-      }
+    await prisma.$transaction(async (tx) => {
+      const submitted = await tx.application.update({
+        where: { id: applicationId },
+        data: {
+          state: ApplicationState.SUBMITTED,
+          submittedAt: new Date(),
+          currentStep: "Submitted"
+        },
+        select: {
+          id: true,
+          referenceNo: true,
+          submittedById: true
+        }
+      });
+
+      const workspaceUsers = await getUsersByRoleCodes(tx, ["REVIEW_OFFICER", "DIRECTOR"]);
+
+      await createNotifications(tx, [
+        {
+          userId: submitted.submittedById,
+          applicationId: submitted.id,
+          type: "APPLICATION_UPDATE",
+          title: "Application Submitted",
+          message: `Your application ${submitted.referenceNo} was submitted successfully.`
+        },
+        {
+          userId: submitted.submittedById,
+          applicationId: submitted.id,
+          type: "SYSTEM",
+          title: "Acknowledgement Available",
+          message: `Acknowledgement letter is now available for ${submitted.referenceNo}.`
+        },
+        ...workspaceUsers.map((workspaceUser) => ({
+          userId: workspaceUser.id,
+          applicationId: submitted.id,
+          type: "APPLICATION_UPDATE" as const,
+          title: "New Application in Review Queue",
+          message: `Application ${submitted.referenceNo} has been submitted for review.`
+        }))
+      ]);
+
+      await createEmailSimulationLogs(tx, [
+        {
+          applicationId: submitted.id,
+          recipient: user.email,
+          subject: `Submission received: ${submitted.referenceNo}`,
+          bodyPreview: "Your application submission has been received. An acknowledgement is now available in the portal.",
+          eventType: "APPLICATION_SUBMITTED"
+        },
+        {
+          applicationId: submitted.id,
+          recipient: user.email,
+          subject: `Acknowledgement available: ${submitted.referenceNo}`,
+          bodyPreview: "You can now open the acknowledgement letter for your submitted application from the application detail page.",
+          eventType: "ACKNOWLEDGEMENT_AVAILABLE"
+        },
+        ...workspaceUsers.map((workspaceUser) => ({
+          applicationId: submitted.id,
+          recipient: workspaceUser.email,
+          subject: `New review item: ${submitted.referenceNo}`,
+          bodyPreview: `A new application has entered the review queue and is ready for workspace assessment.`,
+          eventType: "REVIEW_QUEUE_NEW_SUBMISSION"
+        }))
+      ]);
     });
+
+    revalidatePath("/portal", "layout");
+    revalidatePath("/workspace", "layout");
   }
 
   return applicationId;
@@ -248,12 +310,72 @@ export async function submitDraftApplication(applicationId: string) {
     );
   }
 
-  await prisma.application.update({
-    where: { id: application.id },
-    data: {
-      state: ApplicationState.SUBMITTED,
-      submittedAt: new Date(),
-      currentStep: "Submitted"
-    }
+  await prisma.$transaction(async (tx) => {
+    const submitted = await tx.application.update({
+      where: { id: application.id },
+      data: {
+        state: ApplicationState.SUBMITTED,
+        submittedAt: new Date(),
+        currentStep: "Submitted"
+      },
+      select: {
+        id: true,
+        referenceNo: true,
+        submittedById: true
+      }
+    });
+
+    const workspaceUsers = await getUsersByRoleCodes(tx, ["REVIEW_OFFICER", "DIRECTOR"]);
+
+    await createNotifications(tx, [
+      {
+        userId: submitted.submittedById,
+        applicationId: submitted.id,
+        type: "APPLICATION_UPDATE",
+        title: "Application Submitted",
+        message: `Your application ${submitted.referenceNo} was submitted successfully.`
+      },
+      {
+        userId: submitted.submittedById,
+        applicationId: submitted.id,
+        type: "SYSTEM",
+        title: "Acknowledgement Available",
+        message: `Acknowledgement letter is now available for ${submitted.referenceNo}.`
+      },
+      ...workspaceUsers.map((workspaceUser) => ({
+        userId: workspaceUser.id,
+        applicationId: submitted.id,
+        type: "APPLICATION_UPDATE" as const,
+        title: "New Application in Review Queue",
+        message: `Application ${submitted.referenceNo} has been submitted for review.`
+      }))
+    ]);
+
+    await createEmailSimulationLogs(tx, [
+      {
+        applicationId: submitted.id,
+        recipient: user.email,
+        subject: `Submission received: ${submitted.referenceNo}`,
+        bodyPreview: "Your application submission has been received. An acknowledgement is now available in the portal.",
+        eventType: "APPLICATION_SUBMITTED"
+      },
+      {
+        applicationId: submitted.id,
+        recipient: user.email,
+        subject: `Acknowledgement available: ${submitted.referenceNo}`,
+        bodyPreview: "You can now open the acknowledgement letter for your submitted application from the application detail page.",
+        eventType: "ACKNOWLEDGEMENT_AVAILABLE"
+      },
+      ...workspaceUsers.map((workspaceUser) => ({
+        applicationId: submitted.id,
+        recipient: workspaceUser.email,
+        subject: `New review item: ${submitted.referenceNo}`,
+        bodyPreview: "A new application has entered the review queue and is ready for workspace assessment.",
+        eventType: "REVIEW_QUEUE_NEW_SUBMISSION"
+      }))
+    ]);
   });
+
+  revalidatePath("/portal", "layout");
+  revalidatePath("/workspace", "layout");
 }

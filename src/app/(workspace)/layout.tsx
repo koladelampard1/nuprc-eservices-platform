@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { WorkspaceLayout } from "@/components/layouts/workspace-layout";
 import { auth } from "@/lib/auth";
 import { canAccessArea, getHomeRouteForRole } from "@/lib/permissions";
+import { prisma } from "@/lib/prisma";
 
 export default async function WorkspaceRouteLayout({ children }: { children: ReactNode }) {
   const session = await auth();
@@ -17,5 +18,12 @@ export default async function WorkspaceRouteLayout({ children }: { children: Rea
     redirect(getHomeRouteForRole(roleCode));
   }
 
-  return <WorkspaceLayout>{children}</WorkspaceLayout>;
+  const unreadCount = await prisma.notification.count({
+    where: {
+      userId: session.user.id,
+      readAt: null
+    }
+  });
+
+  return <WorkspaceLayout unreadCount={unreadCount}>{children}</WorkspaceLayout>;
 }

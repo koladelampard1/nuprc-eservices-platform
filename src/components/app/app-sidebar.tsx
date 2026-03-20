@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 type NavItem = {
   href: string;
   label: string;
+  badgeCount?: number;
 };
 
 export function AppSidebar({
@@ -29,11 +30,21 @@ export function AppSidebar({
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "block rounded-md px-3 py-2 text-sm font-medium",
+                  "flex items-center justify-between rounded-md px-3 py-2 text-sm font-medium",
                   active ? "bg-primary text-primary-foreground" : "text-slate-700 hover:bg-muted"
                 )}
               >
-                {item.label}
+                <span>{item.label}</span>
+                {item.badgeCount && item.badgeCount > 0 ? (
+                  <span
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-xs font-semibold",
+                      active ? "bg-white/20 text-primary-foreground" : "bg-primary/10 text-primary"
+                    )}
+                  >
+                    {item.badgeCount}
+                  </span>
+                ) : null}
               </Link>
             );
           })}
