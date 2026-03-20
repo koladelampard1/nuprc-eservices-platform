@@ -10,6 +10,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         { href: "/admin/dashboard", label: "Dashboard" },
         { href: "/admin/users", label: "Users" },
         { href: "/admin/services", label: "Services" },
+        { href: "/admin/workflows", label: "Workflow Settings" },
         { href: "/admin/email-log", label: "Email Log" },
         { href: "/admin/audit", label: "Audit" }
       ]}
