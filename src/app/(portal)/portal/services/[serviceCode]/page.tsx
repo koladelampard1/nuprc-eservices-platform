@@ -18,6 +18,25 @@ export default async function PortalServiceDetailPage({ params }: { params: { se
     notFound();
   }
 
+  if (!service.isActive) {
+    return (
+      <section className="space-y-6">
+        <PageHeader title="Service not available" description="This service is currently inactive or unavailable for new applications." />
+        <Card>
+          <CardHeader>
+            <CardTitle>Service unavailable</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-muted-foreground">
+            <p>The selected service is not available at the moment. Please return to the service catalogue for active services.</p>
+            <Link href="/portal/services">
+              <Button variant="outline" size="sm">Back to Services</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </section>
+    );
+  }
+
   return (
     <section className="space-y-6">
       <PageHeader title={service.name} description={service.description} />

@@ -132,6 +132,17 @@ export async function createUserAction(formData: FormData) {
     redirect("/admin/users?error=Selected+role+requires+a+company+assignment.");
   }
 
+  if (!requiresCompany && companyId) {
+    redirect("/admin/users?error=Selected+role+cannot+be+scoped+to+a+company.");
+  }
+
+  if (companyId) {
+    const company = await prisma.company.findUnique({ where: { id: companyId }, select: { id: true } });
+    if (!company) {
+      redirect("/admin/users?error=Selected+company+does+not+exist.");
+    }
+  }
+
   const passwordHash = await hash(password, 10);
 
   try {
@@ -141,7 +152,7 @@ export async function createUserAction(formData: FormData) {
         email,
         passwordHash,
         roleId: role.id,
-        companyId: companyId || null,
+        companyId: requiresCompany ? companyId : null,
         isActive
       }
     });
@@ -204,11 +215,22 @@ export async function updateUserAssignmentAction(formData: FormData) {
     redirect("/admin/users?error=Selected+role+requires+a+company+assignment.");
   }
 
+  if (!requiresCompany && companyId) {
+    redirect("/admin/users?error=Selected+role+cannot+be+scoped+to+a+company.");
+  }
+
+  if (companyId) {
+    const company = await prisma.company.findUnique({ where: { id: companyId }, select: { id: true } });
+    if (!company) {
+      redirect("/admin/users?error=Selected+company+does+not+exist.");
+    }
+  }
+
   await prisma.user.update({
     where: { id: userId },
     data: {
       roleId: nextRole.id,
-      companyId: companyId || null,
+      companyId: requiresCompany ? companyId : null,
       isActive
     }
   });

@@ -7,7 +7,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { prisma } from "@/lib/prisma";
 
 export default async function PortalServicesPage() {
-  const services = await prisma.serviceType.findMany({ orderBy: { name: "asc" } });
+  const services = await prisma.serviceType.findMany({
+    where: { isActive: true },
+    orderBy: { name: "asc" }
+  });
 
   return (
     <section className="space-y-6">
