@@ -55,6 +55,11 @@ export default async function ApplicationDetailPage({
         include: { requestedBy: true },
         orderBy: { createdAt: "desc" }
       },
+      decisionLetters: {
+        select: {
+          decisionType: true
+        }
+      },
       serviceType: {
         include: {
           documentRequirements: {
@@ -89,6 +94,10 @@ export default async function ApplicationDetailPage({
   const submitAction = submitDraftFromDetailAction.bind(null, application.id);
   const respondAction = respondToClarificationAction.bind(null, application.id);
   const hasUnresolvedClarification = application.clarificationRequests.some((request) => !request.respondedAt);
+
+  const hasAcknowledgementLetter = application.state !== "DRAFT";
+  const hasApprovalLetter = application.state === "APPROVED" && application.decisionLetters.some((letter) => letter.decisionType === "APPROVAL");
+  const hasRejectionLetter = application.state === "REJECTED" && application.decisionLetters.some((letter) => letter.decisionType === "REJECTION");
 
   return (
     <section className="space-y-6">
@@ -157,6 +166,36 @@ export default async function ApplicationDetailPage({
           Clarification Required: Please review reviewer feedback below and provide your response.
         </p>
       ) : null}
+
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Official Letters</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-3 text-sm">
+          {hasAcknowledgementLetter ? (
+            <Link href={`/api/portal/applications/${application.id}/letters/acknowledgement`} target="_blank">
+              <Button variant="outline">Download Acknowledgement</Button>
+            </Link>
+          ) : null}
+
+          {hasApprovalLetter ? (
+            <Link href={`/api/portal/applications/${application.id}/letters/approval`} target="_blank">
+              <Button>Download Approval Letter</Button>
+            </Link>
+          ) : null}
+
+          {hasRejectionLetter ? (
+            <Link href={`/api/portal/applications/${application.id}/letters/rejection`} target="_blank">
+              <Button variant="outline" className="border-rose-300 text-rose-700 hover:bg-rose-50">Download Rejection Letter</Button>
+            </Link>
+          ) : null}
+
+          {!hasAcknowledgementLetter && !hasApprovalLetter && !hasRejectionLetter ? (
+            <p className="text-muted-foreground">Letters become available once the application is submitted.</p>
+          ) : null}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
