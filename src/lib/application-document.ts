@@ -44,19 +44,23 @@ function buildRelativeStoragePath(applicationId: string, requirementId: string, 
   return path.join("applications", applicationId, requirementId, `${timestamp}-${safeName}`);
 }
 
-export function matchesRequirement(storagePath: string, requirementId: string) {
-  const normalized = storagePath.replace(/\\/g, "/");
+export function matchesRequirement(document: { storagePath: string; requirementId: string | null }, requirementId: string) {
+  if (document.requirementId) {
+    return document.requirementId === requirementId;
+  }
+
+  const normalized = document.storagePath.replace(/\\/g, "/");
   return normalized.includes(`/${requirementId}/`);
 }
 
 export function computeLatestUploadsByRequirement(
   requirements: Array<{ id: string }>,
-  documents: Array<{ id: string; fileName: string; storagePath: string; uploadedAt: Date }>
+  documents: Array<{ id: string; fileName: string; storagePath: string; requirementId: string | null; uploadedAt: Date }>
 ) {
   return Object.fromEntries(
     requirements.map((requirement) => {
       const latest = documents
-        .filter((document) => matchesRequirement(document.storagePath, requirement.id))
+        .filter((document) => matchesRequirement(document, requirement.id))
         .sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime())[0];
       return [requirement.id, latest ?? null];
     })
@@ -66,6 +70,7 @@ export function computeLatestUploadsByRequirement(
 export async function saveApplicationDocument(params: {
   applicationId: string;
   requirementId: string;
+  uploadedByUserId: string;
   file: File;
 }) {
   validateUploadFile(params.file);
@@ -80,6 +85,8 @@ export async function saveApplicationDocument(params: {
   return prisma.applicationDocument.create({
     data: {
       applicationId: params.applicationId,
+      requirementId: params.requirementId,
+      uploadedByUserId: params.uploadedByUserId,
       fileName: params.file.name,
       mimeType: params.file.type || "application/octet-stream",
       storagePath: relativeStoragePath.replace(/\\/g, "/")
@@ -100,12 +107,11 @@ export async function getMissingRequiredDocuments(
     }),
     tx.applicationDocument.findMany({
       where: { applicationId },
-      select: { storagePath: true }
+      select: { storagePath: true, requirementId: true }
     })
   ]);
 
   return requirements
-    .filter((requirement) => !documents.some((document) => matchesRequirement(document.storagePath, requirement.id)))
+    .filter((requirement) => !documents.some((document) => matchesRequirement(document, requirement.id)))
     .map((requirement) => requirement.name);
 }
-

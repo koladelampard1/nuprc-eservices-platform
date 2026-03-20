@@ -16,7 +16,8 @@ export async function uploadApplicationDocumentAction(
   const application = await prisma.application.findFirst({
     where: {
       id: context.applicationId,
-      companyId: user.companyId ?? ""
+      companyId: user.companyId ?? "",
+      submittedById: user.id
     },
     include: {
       serviceType: {
@@ -56,6 +57,7 @@ export async function uploadApplicationDocumentAction(
     await saveApplicationDocument({
       applicationId: context.applicationId,
       requirementId: context.requirementId,
+      uploadedByUserId: user.id,
       file
     });
 
