@@ -90,7 +90,7 @@ export function LoginForm({ roleContext }: { roleContext?: string }) {
 
   return (
     <div className="mx-auto max-w-md pt-12">
-      <Card className="border-slate-200 shadow-lg shadow-slate-200/60">
+      <Card className="border-emerald-100 bg-gradient-to-b from-white to-emerald-50/35 shadow-lg shadow-emerald-900/10">
         <CardHeader className="space-y-3">
           <span className="inline-flex w-fit items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary">
             <ShieldCheck className="h-3.5 w-3.5" /> {copy.chip}
@@ -125,7 +125,7 @@ export function LoginForm({ roleContext }: { roleContext?: string }) {
               />
             </div>
             {error ? <StateBanner tone="error" message={error} /> : null}
-            <Button className="w-full" disabled={isLoading}>
+            <Button className="w-full bg-gradient-to-r from-primary to-emerald-700 hover:from-primary/95 hover:to-emerald-700/95" disabled={isLoading}>
               {isLoading ? "Signing in..." : "Sign in"}
             </Button>
             <p className="text-center text-xs text-muted-foreground">Demo password for seeded accounts: <span className="font-semibold">Demo@123</span></p>
