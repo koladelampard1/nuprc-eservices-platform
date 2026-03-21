@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { PageHeader } from "@/components/app/page-header";
+import { StateBanner } from "@/components/app/state-banner";
 import { StatusBadge } from "@/components/app/status-badge";
 import { ApplicationTimeline } from "@/components/app/application-timeline";
 import { Button } from "@/components/ui/button";
@@ -132,17 +133,9 @@ export default async function ReviewerApplicationDetailPage({
         description="Inspect full submission details, evaluate evidence, and capture review decisions."
       />
 
-      {searchParams.success ? (
-        <p className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          {decodeURIComponent(searchParams.success)}
-        </p>
-      ) : null}
+      {searchParams.success ? <StateBanner tone="success" message={decodeURIComponent(searchParams.success)} /> : null}
 
-      {searchParams.error ? (
-        <p className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-          {decodeURIComponent(searchParams.error)}
-        </p>
-      ) : null}
+      {searchParams.error ? <StateBanner tone="error" message={decodeURIComponent(searchParams.error)} /> : null}
 
       <Card>
         <CardHeader>

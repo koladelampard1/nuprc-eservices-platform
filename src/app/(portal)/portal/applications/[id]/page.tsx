@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { PageHeader } from "@/components/app/page-header";
+import { StateBanner } from "@/components/app/state-banner";
 import { StatusBadge } from "@/components/app/status-badge";
 import { ApplicationTimeline } from "@/components/app/application-timeline";
 import { Button } from "@/components/ui/button";
@@ -146,17 +147,17 @@ export default async function ApplicationDetailPage({
     <section className="space-y-6">
       <PageHeader title={`Application ${application.referenceNo}`} description="Review the submitted or draft application details." />
 
-      {searchParams.uploaded ? <p className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">Document uploaded successfully.</p> : null}
-      {searchParams.saved === "draft" ? <p className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">Draft saved successfully.</p> : null}
-      {searchParams.submitted === "true" ? <p className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">Application submitted successfully.</p> : null}
-      {searchParams.submitStatus === "deferred" ? <p className="rounded-md border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">Draft saved. Complete required documents/payment before final submission.</p> : null}
-      {searchParams.clarificationResponded === "true" ? <p className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">Clarification response submitted successfully.</p> : null}
-      {searchParams.paymentGenerated === "true" ? <p className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">Demo payment reference generated successfully.</p> : null}
-      {searchParams.paymentPaid === "true" ? <p className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">Demo payment marked as PAID successfully. You can now submit this draft.</p> : null}
-      {searchParams.paymentFailed === "true" ? <p className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Demo payment marked as FAILED.</p> : null}
-      {searchParams.uploadError ? <p className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{decodeURIComponent(searchParams.uploadError)}</p> : null}
-      {searchParams.submitError ? <p className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{decodeURIComponent(searchParams.submitError)}</p> : null}
-      {searchParams.payError ? <p className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{decodeURIComponent(searchParams.payError)}</p> : null}
+      {searchParams.uploaded ? <StateBanner tone="success" message="Document uploaded successfully." /> : null}
+      {searchParams.saved === "draft" ? <StateBanner tone="success" message="Draft saved successfully." /> : null}
+      {searchParams.submitted === "true" ? <StateBanner tone="success" message="Application submitted successfully." /> : null}
+      {searchParams.submitStatus === "deferred" ? <StateBanner tone="info" message="Draft saved. Complete required documents/payment before final submission." /> : null}
+      {searchParams.clarificationResponded === "true" ? <StateBanner tone="success" message="Clarification response submitted successfully." /> : null}
+      {searchParams.paymentGenerated === "true" ? <StateBanner tone="success" message="Demo payment reference generated successfully." /> : null}
+      {searchParams.paymentPaid === "true" ? <StateBanner tone="success" message="Demo payment marked as PAID successfully. You can now submit this draft." /> : null}
+      {searchParams.paymentFailed === "true" ? <StateBanner tone="warning" message="Demo payment marked as FAILED." /> : null}
+      {searchParams.uploadError ? <StateBanner tone="error" message={decodeURIComponent(searchParams.uploadError)} /> : null}
+      {searchParams.submitError ? <StateBanner tone="error" message={decodeURIComponent(searchParams.submitError)} /> : null}
+      {searchParams.payError ? <StateBanner tone="error" message={decodeURIComponent(searchParams.payError)} /> : null}
 
       <Card>
         <CardHeader><CardTitle>Application Summary</CardTitle></CardHeader>

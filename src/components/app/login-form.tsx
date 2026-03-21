@@ -1,20 +1,61 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { ShieldCheck } from "lucide-react";
 
+import { StateBanner } from "@/components/app/state-banner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getHomeRouteForRole } from "@/lib/permissions";
 
-export function LoginForm() {
+type RoleContext = "operator" | "workspace" | "admin";
+
+const roleCopy: Record<RoleContext, { title: string; subtitle: string; chip: string; emailHint: string }> = {
+  operator: {
+    title: "Sign in to Operator Portal",
+    subtitle: "Access application initiation, document upload, and submission tracking.",
+    chip: "Operator Access",
+    emailHint: "operator@deltaenergy.ng"
+  },
+  workspace: {
+    title: "Sign in to Regulatory Workspace",
+    subtitle: "Continue review operations, queue prioritization, and workflow decisions.",
+    chip: "Regulatory Access",
+    emailHint: "reviewer@nuprc.gov.ng"
+  },
+  admin: {
+    title: "Sign in to Admin Console",
+    subtitle: "Manage user accounts, service configuration, and governance settings.",
+    chip: "Admin Access",
+    emailHint: "admin@nuprc.gov.ng"
+  }
+};
+
+function resolveRoleContext(roleContext?: string): RoleContext | null {
+  if (roleContext === "operator" || roleContext === "workspace" || roleContext === "admin") {
+    return roleContext;
+  }
+
+  return null;
+}
+
+export function LoginForm({ roleContext }: { roleContext?: string }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  const resolvedRoleContext = useMemo(() => resolveRoleContext(roleContext), [roleContext]);
+  const copy = resolvedRoleContext ? roleCopy[resolvedRoleContext] : {
+    title: "Sign in to NUPRC Platform",
+    subtitle: "Choose any seeded demo account. Password for all demo users: Demo@123.",
+    chip: "Secure Sign-In",
+    emailHint: "operator@deltaenergy.ng"
+  };
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -48,11 +89,14 @@ export function LoginForm() {
   }
 
   return (
-    <div className="mx-auto max-w-md pt-16">
-      <Card>
-        <CardHeader>
-          <CardTitle>Sign in to NUPRC Platform</CardTitle>
-          <CardDescription>Use any seeded demo account with password Demo@123.</CardDescription>
+    <div className="mx-auto max-w-md pt-12">
+      <Card className="border-slate-200 shadow-lg shadow-slate-200/60">
+        <CardHeader className="space-y-3">
+          <span className="inline-flex w-fit items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary">
+            <ShieldCheck className="h-3.5 w-3.5" /> {copy.chip}
+          </span>
+          <CardTitle>{copy.title}</CardTitle>
+          <CardDescription>{copy.subtitle}</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={onSubmit}>
@@ -61,7 +105,7 @@ export function LoginForm() {
               <Input
                 id="email"
                 type="email"
-                placeholder="operator@deltaenergy.ng"
+                placeholder={copy.emailHint}
                 autoComplete="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
@@ -80,10 +124,11 @@ export function LoginForm() {
                 required
               />
             </div>
-            {error ? <p className="text-xs text-red-600">{error}</p> : null}
+            {error ? <StateBanner tone="error" message={error} /> : null}
             <Button className="w-full" disabled={isLoading}>
               {isLoading ? "Signing in..." : "Sign in"}
             </Button>
+            <p className="text-center text-xs text-muted-foreground">Demo password for seeded accounts: <span className="font-semibold">Demo@123</span></p>
           </form>
         </CardContent>
       </Card>
