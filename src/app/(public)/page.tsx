@@ -37,15 +37,15 @@ const workflow = [
 export default function HomePage() {
   return (
     <div className="space-y-10 pb-8">
-      <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-primary p-10 text-white shadow-2xl md:p-14">
+      <section className="relative overflow-hidden rounded-3xl border border-emerald-900/20 bg-gradient-to-br from-[#042817] via-[#063a22] to-[#0b5d36] p-10 text-white shadow-2xl md:p-14">
         <div className="absolute -right-20 -top-20 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
-        <div className="absolute -bottom-28 -left-20 h-80 w-80 rounded-full bg-sky-300/20 blur-3xl" />
+        <div className="absolute -bottom-28 -left-20 h-80 w-80 rounded-full bg-emerald-300/20 blur-3xl" />
         <div className="relative max-w-4xl space-y-6">
-          <p className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em]">
-            <Landmark className="h-3.5 w-3.5" /> NUPRC Digital Infrastructure
+          <p className="inline-flex items-center gap-2 rounded-full border border-emerald-200/35 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em]">
+            <Landmark className="h-3.5 w-3.5" /> NUPRC Regulatory Digital Infrastructure
           </p>
           <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">
-            Chairman-ready digital e-services platform for licensing, review, and regulatory delivery.
+            Unified digital platform for upstream licensing, compliance, and regulatory service delivery.
           </h1>
           <p className="max-w-3xl text-base text-slate-200 md:text-lg">
             A unified, role-secure operating platform that enables operators, reviewers, and administrators to execute
@@ -53,12 +53,12 @@ export default function HomePage() {
           </p>
           <div className="flex flex-wrap gap-3">
             <Link href="/login?role=operator">
-              <Button size="lg" className="bg-white text-slate-900 hover:bg-slate-100">
+              <Button size="lg" className="bg-white text-[#07351f] hover:bg-emerald-50">
                 Launch Platform <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>
             <Link href="#access-pathways">
-              <Button size="lg" variant="outline" className="border-white/40 bg-transparent text-white hover:bg-white/10">
+              <Button size="lg" variant="outline" className="border-white/45 bg-white/5 text-white hover:bg-white/15">
                 Explore Access Pathways
               </Button>
             </Link>
@@ -71,7 +71,7 @@ export default function HomePage() {
           const Icon = item.icon;
 
           return (
-            <Card key={item.title} className="border-slate-200/80 bg-white/90 shadow-sm">
+            <Card key={item.title} className="border-emerald-100/90 bg-white/95 shadow-sm">
               <CardHeader className="space-y-3">
                 <div className="w-fit rounded-full bg-primary/10 p-2 text-primary">
                   <Icon className="h-5 w-5" />
@@ -91,14 +91,14 @@ export default function HomePage() {
         </div>
         <div className="grid gap-4 md:grid-cols-3">
           {accessOptions.map((item) => (
-            <Card key={item.title} className="group border-slate-200 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+            <Card key={item.title} className="group border-emerald-100 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md">
               <CardHeader>
                 <CardTitle className="text-xl">{item.title}</CardTitle>
                 <CardDescription>{item.description}</CardDescription>
               </CardHeader>
               <CardContent>
                 <Link href={item.href}>
-                  <Button className="w-full justify-between">
+                  <Button className="w-full justify-between bg-gradient-to-r from-primary to-emerald-700 hover:from-primary/95 hover:to-emerald-700/95">
                     Continue <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
@@ -109,14 +109,14 @@ export default function HomePage() {
       </section>
 
       <section className="grid gap-4 md:grid-cols-2">
-        <Card className="border-slate-200 shadow-sm">
+        <Card className="border-emerald-100 shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><ClipboardCheck className="h-5 w-5 text-primary" /> Simple Process Flow</CardTitle>
             <CardDescription>From submission to decision, users can understand what happens next at every stage.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             {workflow.map((item, index) => (
-              <div key={item} className="flex gap-3 rounded-lg border bg-slate-50/70 p-3">
+              <div key={item} className="flex gap-3 rounded-lg border border-emerald-100 bg-emerald-50/35 p-3">
                 <span className="mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white">{index + 1}</span>
                 <p className="text-slate-700">{item}</p>
               </div>
@@ -124,15 +124,15 @@ export default function HomePage() {
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 shadow-sm">
+        <Card className="border-emerald-100 shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Building2 className="h-5 w-5 text-primary" /> Platform Value</CardTitle>
             <CardDescription>Built for digital public service excellence with strong regulatory credibility.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-slate-700">
-            <p className="rounded-lg border bg-slate-50/70 p-3">Centralized application processing across operators, workspaces, and admins.</p>
-            <p className="rounded-lg border bg-slate-50/70 p-3">Transparent milestones, payment records, and communication history for every application.</p>
-            <p className="rounded-lg border bg-slate-50/70 p-3">Consistent governance controls with clear visibility into operational and compliance metrics.</p>
+            <p className="rounded-lg border border-emerald-100 bg-emerald-50/35 p-3">Centralized application processing across operators, workspaces, and admins.</p>
+            <p className="rounded-lg border border-emerald-100 bg-emerald-50/35 p-3">Transparent milestones, payment records, and communication history for every application.</p>
+            <p className="rounded-lg border border-emerald-100 bg-emerald-50/35 p-3">Consistent governance controls with clear visibility into operational and compliance metrics.</p>
           </CardContent>
         </Card>
       </section>

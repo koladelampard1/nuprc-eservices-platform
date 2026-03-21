@@ -6,7 +6,7 @@ import { APP_NAME } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: APP_NAME,
-  description: "Chairman-demo-ready MVP foundation for NUPRC digital e-services"
+  description: "Secure digital e-services platform for licensing, review, and regulatory delivery"
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 export function MetricCard({ title, value, delta }: { title: string; value: string | number; delta?: string }) {
   return (
-    <Card className="border-slate-200 shadow-sm">
+    <Card className="border-emerald-100 bg-gradient-to-b from-white to-emerald-50/30 shadow-sm">
       <CardHeader className="pb-2">
         <CardDescription className="font-medium text-slate-600">{title}</CardDescription>
         <CardTitle className="text-3xl tracking-tight">{value}</CardTitle>
