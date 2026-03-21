@@ -19,10 +19,10 @@ export function AppSidebar({
   pathname: string;
 }) {
   return (
-    <aside className="flex min-h-screen w-64 flex-col border-r bg-white px-4 py-6">
+    <aside className="flex min-h-screen w-72 flex-col border-r border-slate-200 bg-gradient-to-b from-white to-slate-50 px-4 py-6">
       <div>
-        <h2 className="mb-6 px-2 text-sm font-bold tracking-wide text-primary">{title}</h2>
-        <nav className="space-y-1">
+        <h2 className="mb-6 px-2 text-xs font-bold uppercase tracking-[0.2em] text-primary">{title}</h2>
+        <nav className="space-y-1.5">
           {items.map((item) => {
             const active = pathname === item.href;
             return (
@@ -30,8 +30,8 @@ export function AppSidebar({
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex items-center justify-between rounded-md px-3 py-2 text-sm font-medium",
-                  active ? "bg-primary text-primary-foreground" : "text-slate-700 hover:bg-muted"
+                  "flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition",
+                  active ? "bg-primary text-primary-foreground shadow-sm" : "text-slate-700 hover:bg-white hover:shadow-sm"
                 )}
               >
                 <span>{item.label}</span>
